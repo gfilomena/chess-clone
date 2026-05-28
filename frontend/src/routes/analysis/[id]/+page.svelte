@@ -173,27 +173,16 @@
 			const bm     = reviewData[currentIdx - 1]?.bestMove ?? '';
 			const isBest = bm.length >= 4 && bm !== '(none)' && played.slice(0, 4) === bm.slice(0, 4);
 
-			const out: { from: string; to: string; color: string }[] = [];
-
-			// freccia mossa giocata: verde se è la migliore, blu altrimenti
-			if (played.length >= 4) {
-				out.push({
-					from:  played.slice(0, 2),
-					to:    played.slice(2, 4),
-					color: isBest ? 'rgba(100,190,100,0.9)' : 'rgba(80,128,200,0.85)'
-				});
-			}
-
-			// freccia migliore motore (solo se diversa dalla giocata)
+			// solo freccia verde motore (se diversa dalla mossa giocata)
 			if (!isBest && bm.length >= 4 && bm !== '(none)') {
-				out.push({
+				return [{
 					from:  bm.slice(0, 2),
 					to:    bm.slice(2, 4),
 					color: 'rgba(100,190,100,0.9)'
-				});
+				}];
 			}
 
-			return out;
+			return [];
 		}
 		// modalità analisi live
 		const bm = analysis?.bestMove;
