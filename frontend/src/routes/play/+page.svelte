@@ -176,9 +176,14 @@
 
 		<!-- ── Matchmaking status ─────────────────────────────────────────── -->
 		{#if mm === 'idle'}
-			<button class="btn btn-primary play-btn" onclick={startSearch}>
-				Trova partita casuale
-			</button>
+			<div class="play-options">
+				<button class="btn btn-primary play-btn" onclick={startSearch}>
+					Trova partita casuale
+				</button>
+				<a href="/play/bot" class="btn btn-secondary bot-btn">
+					🤖 Gioca contro il Bot
+				</a>
+			</div>
 
 		{:else if mm === 'searching'}
 			<div class="searching-box">
@@ -272,10 +277,34 @@
 	.mode-desc { color: var(--text-muted); margin-bottom: 0.5rem; }
 	.mode-elo { font-size: 0.95rem; color: var(--text-muted); }
 
+	.play-options {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
 	.play-btn {
 		width: 260px;
 		padding: 1rem;
 		font-size: 1.05rem;
+	}
+
+	.bot-btn {
+		width: 260px;
+		padding: 0.85rem 1rem;
+		font-size: 1rem;
+		text-align: center;
+		text-decoration: none;
+		background: var(--bg-card);
+		border: 2px solid var(--border);
+		color: var(--text);
+		border-radius: 8px;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.bot-btn:hover {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
 	}
 
 	/* ── Searching ── */

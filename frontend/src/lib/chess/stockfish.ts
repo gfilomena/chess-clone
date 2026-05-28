@@ -74,6 +74,33 @@ export class StockfishEngine {
 		});
 	}
 
+	/**
+	 * Ottiene la mossa migliore per la posizione FEN al livello ELO specificato.
+	 * Usa UCI_LimitStrength + UCI_Elo per limitare la forza del motore.
+	 * Ritorna la mossa in formato UCI (es. "e2e4", "e7e8q") o "" se non disponibile.
+	 */
+	getBestMove(fen: string, elo: number): Promise<string> {
+		if (!this.initialized) return Promise.resolve('');
+
+		return new Promise((resolve) => {
+			this.onMessage = (msg: string) => {
+				if (msg.startsWith('bestmove')) {
+					const move = msg.split(' ')[1] ?? '';
+					this.onMessage = null;
+					resolve(move === '(none)' ? '' : move);
+				}
+			};
+
+			this.send('setoption name UCI_LimitStrength value true');
+			this.send(`setoption name UCI_Elo value ${Math.max(200, Math.min(2850, elo))}`);
+			this.send(`position fen ${fen}`);
+
+			// Movetime proporzionale all'ELO: 300ms (200 ELO) → 1500ms (2000 ELO)
+			const movetime = Math.round(300 + ((elo - 200) / 1800) * 1200);
+			this.send(`go movetime ${movetime}`);
+		});
+	}
+
 	stop() {
 		this.send('stop');
 	}
