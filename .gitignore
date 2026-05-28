@@ -12,6 +12,11 @@ backend/chess-clone
 backend/*.exe
 backend/tmp/
 /bin/
+chess-clone
+
+# static popolato dal build (mantieni solo .gitkeep)
+backend/cmd/server/static/*
+!backend/cmd/server/static/.gitkeep
 
 # ── Frontend (SvelteKit / Vite) ───────────────────────────────────
 frontend/node_modules/

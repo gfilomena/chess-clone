@@ -1,4 +1,4 @@
-.PHONY: dev db db-stop backend frontend install
+.PHONY: dev db db-stop backend frontend install build build-docker
 
 # Avvia PostgreSQL + Redis
 db:
@@ -39,3 +39,26 @@ dev:
 	@echo "  make db"
 	@echo "  make backend"
 	@echo "  make frontend"
+
+# ── Produzione ──────────────────────────────────────────────────────────────
+
+# Build locale: frontend SPA → embedded nel binario Go
+# Output: ./chess-clone (binario singolo pronto per il deploy)
+build:
+	@echo "==> Build frontend SPA..."
+	cd frontend && npm run build
+	@echo "==> Copia build in backend/cmd/server/static..."
+	rm -rf backend/cmd/server/static
+	mkdir -p backend/cmd/server/static
+	cp -r frontend/build/. backend/cmd/server/static/
+	touch backend/cmd/server/static/.gitkeep
+	@echo "==> Build binario Go (con frontend embedded)..."
+	cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o ../chess-clone ./cmd/server
+	@echo "==> Fatto! Binario: ./chess-clone"
+	@echo "    Avvia con: DATABASE_URL=... REDIS_URL=... ./chess-clone"
+
+# Build via Docker (simula esattamente il deploy Railway)
+build-docker:
+	docker build -t chess-clone:local .
+	@echo "==> Immagine pronta: chess-clone:local"
+	@echo "    Avvia con: docker run -p 8080:8080 --env-file backend/.env chess-clone:local"

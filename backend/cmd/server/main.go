@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +14,13 @@ import (
 	"chess-clone/backend/internal/db"
 	"chess-clone/backend/internal/matchmaking"
 )
+
+// staticFiles contiene il build SvelteKit compilato.
+// In sviluppo la cartella è vuota (.gitkeep) — il frontend gira separato su :5174.
+// In produzione viene popolata dal Makefile/Dockerfile prima di go build.
+//
+//go:embed all:static
+var staticFiles embed.FS
 
 func main() {
 	// Carica .env prima di tutto
@@ -39,8 +48,14 @@ func main() {
 	mm := matchmaking.NewMatchmaker(pg, rdb)
 	go mm.Run(context.Background())
 
+	// Sottosistema statico — estrae "static/" dall'FS embedded
+	staticFS, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("errore fs.Sub su static: %v", err)
+	}
+
 	// Router
-	router := api.NewRouter(pg, rdb)
+	router := api.NewRouter(pg, rdb, staticFS)
 
 	log.Printf("Server avviato su :%s", port)
 	if err := http.ListenAndServe(":"+port, router); err != nil {
@@ -55,8 +70,8 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// loadDotEnv legge un file .env e setta le variabili d'ambiente
-// Non sovrascrive variabili già presenti nell'ambiente di sistema
+// loadDotEnv legge un file .env e setta le variabili d'ambiente.
+// Non sovrascrive variabili già presenti nell'ambiente di sistema.
 func loadDotEnv(filename string) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -67,7 +82,6 @@ func loadDotEnv(filename string) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		// Salta commenti e righe vuote
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
@@ -77,7 +91,6 @@ func loadDotEnv(filename string) {
 		}
 		key := strings.TrimSpace(parts[0])
 		val := strings.TrimSpace(parts[1])
-		// Non sovrascrive variabili già definite nel sistema
 		if os.Getenv(key) == "" {
 			os.Setenv(key, val)
 		}

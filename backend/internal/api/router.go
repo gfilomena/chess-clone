@@ -1,9 +1,11 @@
 package api
 
 import (
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"chess-clone/backend/internal/db"
 	"chess-clone/backend/internal/game"
@@ -11,7 +13,7 @@ import (
 	"github.com/rs/cors"
 )
 
-func NewRouter(pg *db.Postgres, rdb *db.Redis) http.Handler {
+func NewRouter(pg *db.Postgres, rdb *db.Redis, staticFS fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	hub := game.NewHub(pg, rdb)
 
@@ -74,10 +76,13 @@ func NewRouter(pg *db.Postgres, rdb *db.Redis) http.Handler {
 	mux.HandleFunc("POST /api/invitations/{fromID}/accept", invHandler.AcceptInvite)
 	mux.HandleFunc("GET /api/invitations/stream", invHandler.Stream)
 
-	// CORS — legge FRONTEND_URL da env, default localhost:5173
+	// Frontend SPA — fallback catch-all (deve essere l'ultimo)
+	mux.Handle("/", newSPAHandler(staticFS))
+
+	// CORS — legge FRONTEND_URL da env
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
+		frontendURL = "http://localhost:5174"
 	}
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{frontendURL},
@@ -87,4 +92,39 @@ func NewRouter(pg *db.Postgres, rdb *db.Redis) http.Handler {
 	})
 
 	return c.Handler(mux)
+}
+
+// newSPAHandler serve i file statici del build SvelteKit.
+// Se il file non esiste (route SPA tipo /game/xyz) serve index.html.
+// Se l'FS è vuoto (sviluppo locale) risponde 204 senza errori.
+func newSPAHandler(fsys fs.FS) http.Handler {
+	fileServer := http.FileServer(http.FS(fsys))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Normalizza il path
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		// Controlla se il file esiste nel FS embedded
+		f, err := fsys.Open(path)
+		if err != nil {
+			// File non trovato → SPA fallback: servi index.html
+			indexFile, indexErr := fsys.Open("index.html")
+			if indexErr != nil {
+				// FS vuoto (sviluppo): nessuna risposta statica
+				http.NotFound(w, r)
+				return
+			}
+			indexFile.Close()
+
+			r2 := r.Clone(r.Context())
+			r2.URL.Path = "/"
+			fileServer.ServeHTTP(w, r2)
+			return
+		}
+		f.Close()
+		fileServer.ServeHTTP(w, r)
+	})
 }
