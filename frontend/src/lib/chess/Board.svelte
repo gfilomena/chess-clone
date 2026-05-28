@@ -7,14 +7,65 @@
 		playerColor,
 		isMyTurn,
 		lastMove,
-		onMove
+		onMove,
+		arrows = []
 	}: {
 		fen: string;
 		playerColor: 'white' | 'black';
 		isMyTurn: boolean;
 		lastMove: { from: string; to: string } | null;
 		onMove: (from: string, to: string, promotion?: string) => void;
+		arrows?: { from: string; to: string; color?: string }[];
 	} = $props();
+
+	// ── Arrow helpers ──────────────────────────────────────────────
+	const FILES_STR = 'abcdefgh';
+
+	function squareCenter(sq: string): { x: number; y: number } {
+		const fi   = FILES_STR.indexOf(sq[0]);
+		const rank = parseInt(sq[1]);
+		if (playerColor === 'white') {
+			return { x: fi + 0.5, y: 8.5 - rank };
+		} else {
+			return { x: 7.5 - fi, y: rank - 0.5 };
+		}
+	}
+
+	interface ArrowGeom {
+		x1: number; y1: number;   // shaft start
+		bx: number; by: number;   // arrowhead base
+		tx: number; ty: number;   // arrowhead tip
+		lx: number; ly: number;   // left wing
+		rx: number; ry: number;   // right wing
+	}
+
+	function computeArrow(from: string, to: string): ArrowGeom | null {
+		if (from.length < 2 || to.length < 2) return null;
+		const P1 = squareCenter(from);
+		const P2 = squareCenter(to);
+		const dx = P2.x - P1.x, dy = P2.y - P1.y;
+		const len = Math.sqrt(dx * dx + dy * dy);
+		if (len < 0.01) return null;
+		const ux = dx / len, uy = dy / len;
+		const px = -uy,       py =  ux;   // perpendicular unit vector
+
+		const startOff  = 0.28;
+		const headLen   = 0.38;
+		const headWidth = 0.22;
+		const tipOff    = 0.22;
+
+		const x1 = P1.x + ux * startOff;
+		const y1 = P1.y + uy * startOff;
+		const tx = P2.x - ux * tipOff;
+		const ty = P2.y - uy * tipOff;
+		const bx = tx - ux * headLen;
+		const by = ty - uy * headLen;
+		return {
+			x1, y1, tx, ty, bx, by,
+			lx: bx + px * headWidth, ly: by + py * headWidth,
+			rx: bx - px * headWidth, ry: by - py * headWidth,
+		};
+	}
 
 	const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 	const RANKS = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -266,6 +317,26 @@
 	</div>
 </div>
 
+<!-- Arrow overlay — sits above pieces, below promotion modal -->
+{#if arrows.length > 0}
+	<svg class="arrows-layer" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg">
+		{#each arrows as arrow}
+			{@const a = computeArrow(arrow.from, arrow.to)}
+			{#if a}
+				{@const col = arrow.color ?? 'rgba(100,190,100,0.88)'}
+				<line
+					x1={a.x1} y1={a.y1} x2={a.bx} y2={a.by}
+					stroke={col} stroke-width="0.13" stroke-linecap="round"
+				/>
+				<polygon
+					points="{a.lx},{a.ly} {a.tx},{a.ty} {a.rx},{a.ry}"
+					fill={col}
+				/>
+			{/if}
+		{/each}
+	</svg>
+{/if}
+
 <!-- Floating drag ghost — viewport-fixed, follows cursor -->
 {#if isDragActive && dragSvg !== null}
 	<div
@@ -391,6 +462,17 @@
 	.drag-ghost :global(svg) {
 		width: 100%;
 		height: 100%;
+	}
+
+	/* ── Arrow overlay ──────────────────────────────────────────── */
+	.arrows-layer {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		z-index: 10;
+		overflow: visible;
 	}
 
 	/* ── Promotion overlay ───────────────────────────────────────── */

@@ -3,34 +3,39 @@
 	import { page } from '$app/stores';
 	import { Chess } from 'chess.js';
 	import Board from '$lib/chess/Board.svelte';
-	import { StockfishEngine, evalToPercent, formatScore, type AnalysisResult } from '$lib/chess/stockfish';
+	import { StockfishEngine, evalToPercent, formatScore, classifyMove, type AnalysisResult, type MoveClassification } from '$lib/chess/stockfish';
 	import { API_URL as API } from '$lib/config';
 
 	const gameId = $page.params.id;
 
-	// ── Stato ──────────────────────────────────────────────────────────────
-	let game = $state<any>(null);
-	let positions = $state<string[]>([]);   // FEN per ogni mossa
-	let moveLabels = $state<string[]>([]);  // es. "1. e4", "1... e5"
-	let currentIdx = $state(0);
-	let analysis = $state<AnalysisResult | null>(null);
+	// ── Stato base ─────────────────────────────────────────────────────────
+	let game      = $state<any>(null);
+	let positions = $state<string[]>([]);    // FEN per ogni posizione
+	let moveLabels= $state<string[]>([]);    // "1. e4", "1... e5" …
+	let moveUcis  = $state<string[]>([]);    // mossa UCI da pos[i] → pos[i+1]
+	let currentIdx= $state(0);
+	let analysis  = $state<AnalysisResult | null>(null);
 	let analyzing = $state(false);
 	let engine: StockfishEngine | null = null;
-	let loading = $state(true);
-	let error = $state('');
+	let loading   = $state(true);
+	let error     = $state('');
 
-	// ── Caricamento partita ────────────────────────────────────────────────
+	// ── Revisione ─────────────────────────────────────────────────────────
+	let reviewMode    = $state(false);
+	let reviewRunning = $state(false);
+	let reviewProgress= $state(0);
+	let reviewTotal   = $state(0);
+	let reviewData    = $state<Array<{ score: number; bestMove: string }>>([]);
+	let reviewDone    = $state(false);
+
+	// ── Mount ──────────────────────────────────────────────────────────────
 	onMount(async () => {
 		try {
-			const res = await fetch(`${API}/api/games/${gameId}`);
+			const res  = await fetch(`${API}/api/games/${gameId}`);
 			const json = await res.json();
 			if (!json.success) throw new Error('Partita non trovata');
 			game = json.data;
-
-			// Parsa PGN → array di FEN
 			parsePositions(game.pgn);
-
-			// Inizializza Stockfish
 			engine = new StockfishEngine();
 			await engine.init();
 		} catch (e: any) {
@@ -38,42 +43,37 @@
 		} finally {
 			loading = false;
 		}
-
-		// Analizza posizione iniziale
 		await analyzeCurrentPosition();
 	});
 
-	onDestroy(() => {
-		engine?.destroy();
-	});
+	onDestroy(() => engine?.destroy());
 
-	// ── Parser PGN → posizioni ─────────────────────────────────────────────
+	// ── Parser PGN ─────────────────────────────────────────────────────────
 	function parsePositions(pgn: string) {
 		const chess = new Chess();
-		if (pgn) {
-			try { chess.loadPgn(pgn); } catch {}
-		}
+		if (pgn) { try { chess.loadPgn(pgn); } catch {} }
 
 		const history = chess.history({ verbose: true }) as any[];
-		const fens: string[] = [];
+		const fens: string[]   = [];
 		const labels: string[] = [];
+		const ucis: string[]   = [];
 
 		const replay = new Chess();
-		fens.push(replay.fen()); // posizione iniziale
+		fens.push(replay.fen());
 		labels.push('Inizio');
 
 		for (let i = 0; i < history.length; i++) {
-			const move = history[i];
-			replay.move(move);
+			const mv = history[i];
+			replay.move(mv);
 			fens.push(replay.fen());
-
-			const moveNum = Math.floor(i / 2) + 1;
-			const label = i % 2 === 0 ? `${moveNum}. ${move.san}` : `${moveNum}... ${move.san}`;
-			labels.push(label);
+			const n = Math.floor(i / 2) + 1;
+			labels.push(i % 2 === 0 ? `${n}. ${mv.san}` : `${n}... ${mv.san}`);
+			ucis.push(`${mv.from}${mv.to}${mv.promotion ?? ''}`);
 		}
 
-		positions = fens;
+		positions  = fens;
 		moveLabels = labels;
+		moveUcis   = ucis;
 	}
 
 	// ── Navigazione ────────────────────────────────────────────────────────
@@ -81,8 +81,10 @@
 		if (idx < 0 || idx >= positions.length) return;
 		engine?.stop();
 		currentIdx = idx;
-		analysis = null;
-		await analyzeCurrentPosition();
+		if (!reviewMode) {
+			analysis = null;
+			await analyzeCurrentPosition();
+		}
 	}
 
 	function goFirst() { goTo(0); }
@@ -90,7 +92,7 @@
 	function goNext()  { goTo(currentIdx + 1); }
 	function goLast()  { goTo(positions.length - 1); }
 
-	// ── Analisi Stockfish ─────────────────────────────────────────────────
+	// ── Analisi live ───────────────────────────────────────────────────────
 	async function analyzeCurrentPosition() {
 		if (!engine || !positions[currentIdx]) return;
 		analyzing = true;
@@ -101,6 +103,34 @@
 		}
 	}
 
+	// ── Revisione batch ────────────────────────────────────────────────────
+	async function startReview() {
+		if (!engine || reviewRunning) return;
+		engine.stop();
+		reviewMode     = true;
+		reviewRunning  = true;
+		reviewProgress = 0;
+		reviewTotal    = positions.length;
+		reviewDone     = false;
+		reviewData     = [];
+		analysis       = null;
+
+		try {
+			reviewData = await engine.analyzeAll(positions, 14, (done, total) => {
+				reviewProgress = done;
+				reviewTotal    = total;
+			});
+			reviewDone = true;
+		} finally {
+			reviewRunning = false;
+		}
+	}
+
+	function exitReview() {
+		reviewMode = false;
+		analyzeCurrentPosition();
+	}
+
 	// ── Tastiera ──────────────────────────────────────────────────────────
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'ArrowLeft')  goPrev();
@@ -109,14 +139,84 @@
 		if (e.key === 'ArrowDown')  goLast();
 	}
 
-	// ── Helper UI ─────────────────────────────────────────────────────────
+	// ── Derived: eval live ─────────────────────────────────────────────────
 	const evalPercent = $derived(analysis ? evalToPercent(analysis) : 50);
 	const evalText    = $derived(analysis ? formatScore(analysis) : '...');
+
+	// ── Derived: revisione ─────────────────────────────────────────────────
+	/** Classificazione di ogni mossa: moveClassifications[i] = mossa da pos[i]→pos[i+1] */
+	const moveClassifications = $derived(
+		reviewDone && reviewData.length >= positions.length
+			? moveUcis.map((uci, i) => {
+				const before = reviewData[i];
+				const after  = reviewData[i + 1];
+				if (!before || !after) return null as MoveClassification | null;
+				const whiteToMove = positions[i].split(' ')[1] === 'w';
+				return classifyMove(before.score, after.score, whiteToMove, uci, before.bestMove);
+			})
+			: ([] as (MoveClassification | null)[])
+	);
+
+	/** Classificazione della mossa che ha portato alla posizione corrente */
+	const currentClassification = $derived(
+		reviewDone && currentIdx > 0
+			? (moveClassifications[currentIdx - 1] ?? null)
+			: null
+	);
+
+	/** Frecce sul board */
+	const boardArrows = $derived((() => {
+		if (reviewMode && reviewDone) {
+			const bm = reviewData[currentIdx]?.bestMove;
+			if (bm && bm !== '(none)' && bm.length >= 4) {
+				return [{ from: bm.slice(0, 2), to: bm.slice(2, 4), color: 'rgba(100,190,100,0.9)' }];
+			}
+			return [];
+		}
+		// modalità analisi live
+		const bm = analysis?.bestMove;
+		if (bm && bm !== '(none)' && bm.length >= 4) {
+			return [{ from: bm.slice(0, 2), to: bm.slice(2, 4), color: 'rgba(100,190,100,0.75)' }];
+		}
+		return [];
+	})());
+
+	/** Eval bar: in revisione usa il punteggio batch */
+	const reviewEvalPercent = $derived(
+		reviewDone && reviewData[currentIdx] !== undefined
+			? 50 + 50 * Math.tanh(reviewData[currentIdx].score / 400)
+			: 50
+	);
+	const reviewEvalText = $derived(
+		reviewDone && reviewData[currentIdx] !== undefined
+			? (() => {
+				const d = reviewData[currentIdx];
+				const pawns = d.score / 100;
+				return (pawns >= 0 ? '+' : '') + pawns.toFixed(1);
+			})()
+			: '...'
+	);
+
+	const displayEvalPercent = $derived(reviewMode ? reviewEvalPercent : evalPercent);
+	const displayEvalText    = $derived(reviewMode ? reviewEvalText    : evalText);
 
 	function resultBadge(result: string | null): string {
 		if (!result) return '';
 		return { white: 'Bianco vince', black: 'Nero vince', draw: 'Patta' }[result] ?? result;
 	}
+
+	/** Percentuale barra progresso */
+	const progressPct = $derived(reviewTotal > 0 ? Math.round((reviewProgress / reviewTotal) * 100) : 0);
+
+	/** Summary classificazioni (per tabellino) */
+	const reviewSummary = $derived(
+		reviewDone
+			? moveClassifications.reduce((acc, c) => {
+				if (c) acc[c.key] = (acc[c.key] ?? 0) + 1;
+				return acc;
+			}, {} as Record<string, number>)
+			: {}
+	);
 </script>
 
 <svelte:head>
@@ -133,15 +233,15 @@
 <div class="analysis-layout">
 
 	<!-- Eval bar verticale -->
-	<div class="eval-bar" title="{evalText}">
-		<div class="eval-black" style="height: {100 - evalPercent}%"></div>
-		<div class="eval-white" style="height: {evalPercent}%"></div>
-		<span class="eval-label" style="bottom:{evalPercent}%">
-			{evalText}
+	<div class="eval-bar" title="{displayEvalText}">
+		<div class="eval-black" style="height: {100 - displayEvalPercent}%"></div>
+		<div class="eval-white" style="height: {displayEvalPercent}%"></div>
+		<span class="eval-label" style="bottom:{displayEvalPercent}%">
+			{displayEvalText}
 		</span>
 	</div>
 
-	<!-- Scacchiera (sola lettura) -->
+	<!-- Scacchiera -->
 	<div class="board-col">
 		<div class="game-info">
 			<span class="player-tag black-tag">♟ {game.black_username} ({game.black_elo})</span>
@@ -155,6 +255,7 @@
 			isMyTurn={false}
 			lastMove={null}
 			onMove={() => {}}
+			arrows={boardArrows}
 		/>
 
 		<!-- Navigazione -->
@@ -166,35 +267,109 @@
 			<button onclick={goLast}  title="Ultima mossa">⏭</button>
 		</div>
 
-		<!-- Info engine -->
-		<div class="engine-info">
-			{#if analyzing}
-				<span class="analyzing">⚙ Analisi in corso...</span>
-			{:else if analysis}
-				<span>Depth {analysis.depth}</span>
-				<span class="score-text" class:positive={analysis.score > 0} class:negative={analysis.score < 0}>
-					{evalText}
-				</span>
-				{#if analysis.bestMove}
-					<span>Mossa migliore: <strong>{analysis.bestMove}</strong></span>
-				{/if}
+		<!-- Info engine / classifica mossa corrente -->
+		{#if reviewMode}
+			{#if currentClassification}
+				<div class="move-badge-bar" style="--clr:{currentClassification.color}">
+					<span class="badge-symbol">{currentClassification.symbol}</span>
+					<span class="badge-label">{currentClassification.label}</span>
+					{#if currentClassification.delta > 5}
+						<span class="badge-delta">−{(currentClassification.delta / 100).toFixed(1)} pnt</span>
+					{/if}
+					{#if reviewData[currentIdx - 1]?.bestMove && reviewData[currentIdx - 1].bestMove !== '(none)'}
+						{@const bm = reviewData[currentIdx - 1].bestMove}
+						{@const played = moveUcis[currentIdx - 1] ?? ''}
+						{#if bm.slice(0,4) !== played.slice(0,4)}
+							<span class="badge-best">
+								migliore: {bm.slice(0,2)}→{bm.slice(2,4)}
+							</span>
+						{/if}
+					{/if}
+				</div>
+			{:else if currentIdx === 0}
+				<div class="move-badge-bar neutral">Posizione iniziale</div>
 			{/if}
-		</div>
+		{:else}
+			<div class="engine-info">
+				{#if analyzing}
+					<span class="analyzing">⚙ Analisi in corso...</span>
+				{:else if analysis}
+					<span>Depth {analysis.depth}</span>
+					<span class="score-text" class:positive={analysis.score > 0} class:negative={analysis.score < 0}>
+						{evalText}
+					</span>
+					{#if analysis.bestMove && analysis.bestMove !== '(none)'}
+						<span>↗ <strong>{analysis.bestMove.slice(0,2)}→{analysis.bestMove.slice(2,4)}</strong></span>
+					{/if}
+				{/if}
+			</div>
+		{/if}
 	</div>
 
-	<!-- Lista mosse -->
+	<!-- Pannello mosse + azioni -->
 	<div class="moves-col">
 		<h3>Mosse</h3>
 		<div class="moves-list">
 			{#each moveLabels as label, i}
+				{@const cls = i > 0 ? (moveClassifications[i - 1] ?? null) : null}
 				<button
 					class="move-item"
 					class:active={i === currentIdx}
 					onclick={() => goTo(i)}
 				>
-					{label}
+					<span class="move-label-text">{label}</span>
+					{#if cls}
+						<span
+							class="move-cls-badge"
+							class:has-symbol={!!cls.symbol}
+							style="color:{cls.color}"
+							title="{cls.label}{cls.delta > 5 ? ' (−' + (cls.delta/100).toFixed(1) + ')' : ''}"
+						>{cls.symbol || '·'}</span>
+					{/if}
 				</button>
 			{/each}
+		</div>
+
+		<!-- Tabellino revisione -->
+		{#if reviewDone && Object.keys(reviewSummary).length > 0}
+			<div class="review-summary">
+				{#each [
+					{ key:'best',       label:'Ottima',       symbol:'!!', color:'#5B8E55' },
+					{ key:'excellent',  label:'Eccellente',   symbol:'!',  color:'#81B64C' },
+					{ key:'good',       label:'Buona',        symbol:'·',  color:'#5080C0' },
+					{ key:'inaccuracy', label:'Imprecisione', symbol:'?!', color:'#C9A020' },
+					{ key:'mistake',    label:'Errore',       symbol:'?',  color:'#D97706' },
+					{ key:'blunder',    label:'Gaffe',        symbol:'??', color:'#DC2626' },
+				] as row}
+					{#if (reviewSummary[row.key] ?? 0) > 0}
+						<div class="summary-row">
+							<span class="summary-sym" style="color:{row.color}">{row.symbol}</span>
+							<span class="summary-lbl">{row.label}</span>
+							<span class="summary-cnt">{reviewSummary[row.key]}</span>
+						</div>
+					{/if}
+				{/each}
+			</div>
+		{/if}
+
+		<!-- Sezione revisione -->
+		<div class="review-section">
+			{#if reviewRunning}
+				<div class="review-progress">
+					<div class="progress-bar">
+						<div class="progress-fill" style="width:{progressPct}%"></div>
+					</div>
+					<span class="progress-label">Analisi {reviewProgress}/{reviewTotal} posizioni…</span>
+				</div>
+			{:else if reviewDone}
+				<button class="btn btn-google" style="width:100%;font-size:0.8rem" onclick={exitReview}>
+					← Torna ad analisi live
+				</button>
+			{:else}
+				<button class="btn btn-primary" style="width:100%;font-size:0.88rem" onclick={startReview}>
+					🔍 Avvia Revisione
+				</button>
+			{/if}
 		</div>
 
 		<div class="actions">
@@ -202,12 +377,8 @@
 				href={`${API}/api/games/${gameId}/pgn`}
 				class="btn btn-google"
 				style="text-align:center"
-			>
-				⬇ Scarica PGN
-			</a>
-			<a href="/" class="btn btn-primary" style="text-align:center">
-				Nuova partita
-			</a>
+			>⬇ Scarica PGN</a>
+			<a href="/" class="btn btn-primary" style="text-align:center">Nuova partita</a>
 		</div>
 	</div>
 
@@ -229,7 +400,7 @@
 		justify-content: center;
 	}
 
-	/* Eval bar */
+	/* ── Eval bar ── */
 	.eval-bar {
 		width: 20px;
 		height: 480px;
@@ -253,7 +424,7 @@
 		white-space: nowrap;
 	}
 
-	/* Board column */
+	/* ── Board column ── */
 	.board-col {
 		display: flex;
 		flex-direction: column;
@@ -267,18 +438,10 @@
 		gap: 0.5rem;
 		font-size: 0.85rem;
 	}
-
-	.player-tag {
-		font-weight: 600;
-		padding: 0.2rem 0.5rem;
-		border-radius: 4px;
-	}
-	.black-tag { background: #2d3748; }
-	.white-tag { background: #4a5568; }
-	.result-tag {
-		color: var(--accent);
-		font-weight: 700;
-	}
+	.player-tag { font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; }
+	.black-tag  { background: #2d3748; }
+	.white-tag  { background: #4a5568; }
+	.result-tag { color: var(--accent); font-weight: 700; }
 
 	/* Navigation */
 	.nav-controls {
@@ -305,7 +468,7 @@
 		text-align: center;
 	}
 
-	/* Engine info */
+	/* ── Engine info (live) ── */
 	.engine-info {
 		display: flex;
 		gap: 1rem;
@@ -313,16 +476,57 @@
 		font-size: 0.85rem;
 		color: var(--text-muted);
 		justify-content: center;
-		min-height: 24px;
+		min-height: 36px;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 0.4rem 0.8rem;
 	}
-	.analyzing { color: var(--accent); }
-	.score-text { font-weight: 700; }
+	.analyzing   { color: var(--accent); }
+	.score-text  { font-weight: 700; }
 	.score-text.positive { color: #f0d9b5; }
-	.score-text.negative { color: #666; }
+	.score-text.negative { color: #888; }
 
-	/* Moves column */
+	/* ── Badge mossa corrente (revisione) ── */
+	.move-badge-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.5rem 0.9rem;
+		background: var(--bg-card);
+		border: 1px solid var(--clr, var(--border));
+		border-radius: 8px;
+		min-height: 36px;
+		font-size: 0.85rem;
+	}
+	.move-badge-bar.neutral {
+		color: var(--text-muted);
+		border-color: var(--border);
+	}
+	.badge-symbol {
+		font-weight: 800;
+		font-size: 0.95rem;
+		color: var(--clr, var(--text));
+		min-width: 1.4rem;
+		text-align: center;
+	}
+	.badge-label {
+		font-weight: 600;
+		color: var(--clr, var(--text));
+	}
+	.badge-delta {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+	.badge-best {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-family: monospace;
+	}
+
+	/* ── Moves column ── */
 	.moves-col {
-		width: 200px;
+		width: 210px;
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
@@ -339,7 +543,7 @@
 		border: 1px solid var(--border);
 		border-radius: 8px;
 		padding: 0.5rem;
-		max-height: 400px;
+		max-height: 360px;
 		overflow-y: auto;
 		display: flex;
 		flex-direction: column;
@@ -355,13 +559,86 @@
 		cursor: pointer;
 		font-size: 0.85rem;
 		transition: background 0.15s;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.3rem;
 	}
-	.move-item:hover   { background: var(--bg-input); }
-	.move-item.active  { background: var(--accent); color: #000; font-weight: 600; }
+	.move-item:hover  { background: var(--bg-input); }
+	.move-item.active { background: var(--accent); color: #000; font-weight: 600; }
+	.move-item.active .move-cls-badge { color: #000 !important; }
+
+	.move-label-text { flex: 1; }
+	.move-cls-badge {
+		font-weight: 700;
+		font-size: 0.72rem;
+		letter-spacing: 0.02em;
+		flex-shrink: 0;
+		min-width: 1.2rem;
+		text-align: right;
+	}
+
+	/* ── Review summary ── */
+	.review-summary {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 0.6rem 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.summary-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8rem;
+	}
+	.summary-sym { font-weight: 800; min-width: 1.6rem; }
+	.summary-lbl { flex: 1; color: var(--text-muted); }
+	.summary-cnt { font-weight: 700; }
+
+	/* ── Progress bar ── */
+	.review-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.review-progress { display: flex; flex-direction: column; gap: 0.4rem; }
+	.progress-bar {
+		width: 100%;
+		height: 6px;
+		background: var(--border);
+		border-radius: 3px;
+		overflow: hidden;
+	}
+	.progress-fill {
+		height: 100%;
+		background: var(--accent);
+		border-radius: 3px;
+		transition: width 0.2s ease;
+	}
+	.progress-label {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-align: center;
+	}
 
 	.actions {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
+	}
+
+	/* ── Mobile ── */
+	@media (max-width: 768px) {
+		.analysis-layout {
+			flex-direction: column;
+			padding: 0.75rem;
+			align-items: center;
+		}
+		.eval-bar   { display: none; }
+		.moves-col  { width: 100%; padding-top: 0; max-width: 480px; }
+		.moves-list { max-height: 200px; }
 	}
 </style>

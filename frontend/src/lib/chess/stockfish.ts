@@ -101,6 +101,24 @@ export class StockfishEngine {
 		});
 	}
 
+	/**
+	 * Analizza sequenzialmente tutti i FEN (una partita completa).
+	 * depth consigliato: 14-16. onProgress(done, total) per la progress bar.
+	 */
+	async analyzeAll(
+		fens: string[],
+		depth = 14,
+		onProgress?: (done: number, total: number) => void
+	): Promise<Array<{ score: number; bestMove: string }>> {
+		const results: Array<{ score: number; bestMove: string }> = [];
+		for (let i = 0; i < fens.length; i++) {
+			const r = await this.analyze(fens[i], depth);
+			results.push({ score: r.score, bestMove: r.bestMove });
+			onProgress?.(i + 1, fens.length);
+		}
+		return results;
+	}
+
 	stop() {
 		this.send('stop');
 	}
@@ -186,15 +204,49 @@ export function formatScore(result: AnalysisResult): string {
 	return `${sign}${pawns.toFixed(1)}`;
 }
 
-/**
- * Classifica una mossa confrontando eval prima e dopo
- * Restituisce: 'best' | 'good' | 'inaccuracy' | 'mistake' | 'blunder'
- */
-export function classifyMove(scoreBefore: number, scoreAfter: number): string {
-	const delta = scoreBefore - scoreAfter; // perdita dal punto di vista di chi ha mosso
-	if (delta < 10) return 'best';
-	if (delta < 50) return 'good';
-	if (delta < 100) return 'inaccuracy';
-	if (delta < 200) return 'mistake';
-	return 'blunder';
+// ── Move classification ───────────────────────────────────────────────────
+
+export interface MoveClassification {
+	key:    'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+	label:  string;   // testo italiano
+	symbol: string;   // annotazione scacchistica
+	color:  string;   // CSS color
+	delta:  number;   // perdita in centipawns
 }
+
+/**
+ * Classifica una mossa confrontando eval prima e dopo.
+ * scoreBefore/scoreAfter: centipawns normalizzati prospettiva BIANCO.
+ * whiteToMove: true se era il turno del bianco.
+ * playedUci: mossa giocata in UCI (es. "e2e4").
+ * bestUci: mossa migliore del motore (es. "e2e4" o "(none)").
+ */
+export function classifyMove(
+	scoreBefore: number,
+	scoreAfter:  number,
+	whiteToMove: boolean,
+	playedUci:   string,
+	bestUci:     string
+): MoveClassification {
+	// Perdita dal punto di vista di chi ha mosso
+	const delta = Math.max(0,
+		whiteToMove
+			? scoreBefore - scoreAfter    // bianco vuole score alto
+			: scoreAfter  - scoreBefore   // nero vuole score basso (white score cala)
+	);
+
+	const isBest = playedUci.slice(0, 4) === bestUci.slice(0, 4) && bestUci.slice(0, 4) !== '';
+
+	if (isBest || delta < 5)   return { key: 'best',        label: 'Ottima',       symbol: '!!', color: '#5B8E55', delta };
+	if (delta < 25)            return { key: 'excellent',   label: 'Eccellente',   symbol: '!',  color: '#81B64C', delta };
+	if (delta < 60)            return { key: 'good',        label: 'Buona',        symbol: '',   color: '#5080C0', delta };
+	if (delta < 120)           return { key: 'inaccuracy',  label: 'Imprecisione', symbol: '?!', color: '#C9A020', delta };
+	if (delta < 300)           return { key: 'mistake',     label: 'Errore',       symbol: '?',  color: '#D97706', delta };
+	return                            { key: 'blunder',     label: 'Gaffe',        symbol: '??', color: '#DC2626', delta };
+}
+
+/**
+ * Analizza in sequenza tutti i FEN passati.
+ * Ritorna un array parallel di { score, bestMove } per ciascuna posizione.
+ * onProgress(done, total) viene chiamata dopo ogni posizione.
+ */
