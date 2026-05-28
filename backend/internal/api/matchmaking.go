@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,6 +20,7 @@ func NewMatchmakingHandler(pg *db.Postgres, mm *matchmaking.Matchmaker) *Matchma
 }
 
 // POST /api/matchmaking/join
+// Body: { "time_control": 600, "increment": 0, "game_type": "rapid" }
 func (h *MatchmakingHandler) Join(w http.ResponseWriter, r *http.Request) {
 	userID, err := getUserIDFromCookie(r)
 	if err != nil {
@@ -26,16 +28,46 @@ func (h *MatchmakingHandler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Legge preferenze time control dal body (default: rapid 10 min)
+	var body struct {
+		TimeControl int    `json:"time_control"`
+		Increment   int    `json:"increment"`
+		GameType    string `json:"game_type"`
+	}
+	body.TimeControl = 600
+	body.Increment = 0
+	body.GameType = "rapid"
+	json.NewDecoder(r.Body).Decode(&body) // errore ignorato → usa default
+
+	// Valida game_type
+	if body.GameType != "bullet" && body.GameType != "blitz" && body.GameType != "rapid" {
+		body.GameType = "rapid"
+	}
+
+	// Legge l'ELO della categoria corretta
+	eloCol := eloColumn(body.GameType)
 	var elo int
 	if err := h.pg.Pool.QueryRow(r.Context(),
-		`SELECT elo_rapid FROM users WHERE id = $1`, userID,
+		`SELECT `+eloCol+` FROM users WHERE id = $1`, userID,
 	).Scan(&elo); err != nil {
 		writeError(w, http.StatusInternalServerError, "SERVER_ERROR", "Errore interno")
 		return
 	}
 
-	h.mm.Join(userID, elo)
+	h.mm.Join(userID, elo, body.TimeControl, body.Increment, body.GameType)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "in_queue"})
+}
+
+// eloColumn restituisce il nome della colonna ELO per il game type dato.
+func eloColumn(gameType string) string {
+	switch gameType {
+	case "bullet":
+		return "elo_bullet"
+	case "blitz":
+		return "elo_blitz"
+	default:
+		return "elo_rapid"
+	}
 }
 
 // DELETE /api/matchmaking/leave

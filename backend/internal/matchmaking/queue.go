@@ -7,9 +7,12 @@ import (
 
 // QueueEntry rappresenta un giocatore in attesa
 type QueueEntry struct {
-	UserID   string
-	ELO      int
-	JoinedAt time.Time
+	UserID      string
+	ELO         int
+	TimeControl int    // secondi base (es. 600 = 10 min)
+	Increment   int    // secondi di incremento per mossa
+	GameType    string // "bullet" | "blitz" | "rapid"
+	JoinedAt    time.Time
 }
 
 // queue è la coda in-memory condivisa tra Matchmaker e MatchmakingHandler
@@ -26,10 +29,17 @@ func newQueue() *queue {
 	}
 }
 
-func (q *queue) join(userID string, elo int) {
+func (q *queue) join(userID string, elo, timeControl, increment int, gameType string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.entries[userID] = QueueEntry{UserID: userID, ELO: elo, JoinedAt: time.Now()}
+	q.entries[userID] = QueueEntry{
+		UserID:      userID,
+		ELO:         elo,
+		TimeControl: timeControl,
+		Increment:   increment,
+		GameType:    gameType,
+		JoinedAt:    time.Now(),
+	}
 }
 
 func (q *queue) leave(userID string) {

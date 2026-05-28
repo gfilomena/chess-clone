@@ -22,7 +22,9 @@ func NewMatchmaker(pg *db.Postgres) *Matchmaker {
 
 // ── Metodi pubblici usati dall'API handler ─────────────────────────────────
 
-func (m *Matchmaker) Join(userID string, elo int)        { m.queue.join(userID, elo) }
+func (m *Matchmaker) Join(userID string, elo, timeControl, increment int, gameType string) {
+	m.queue.join(userID, elo, timeControl, increment, gameType)
+}
 func (m *Matchmaker) Leave(userID string)                { m.queue.leave(userID) }
 func (m *Matchmaker) IsInQueue(userID string) bool       { return m.queue.isInQueue(userID) }
 func (m *Matchmaker) GetMatch(userID string) (string, bool) { return m.queue.getMatch(userID) }
@@ -75,7 +77,8 @@ func (m *Matchmaker) tryMatch(ctx context.Context) {
 				diff = -diff
 			}
 
-			if diff <= eloRange {
+			// Stessa modalità (time control esatto) + ELO compatibile
+			if p1.TimeControl == p2.TimeControl && p1.Increment == p2.Increment && diff <= eloRange {
 				gameID, err := m.createGame(ctx, p1, p2)
 				if err != nil {
 					log.Printf("matchmaker: errore creazione partita: %v", err)
@@ -101,8 +104,8 @@ func (m *Matchmaker) createGame(ctx context.Context, p1, p2 QueueEntry) (string,
 	var gameID string
 	err := m.pg.Pool.QueryRow(ctx,
 		`INSERT INTO games (white_id, black_id, status, time_control, increment)
-		 VALUES ($1, $2, 'waiting', 600, 0) RETURNING id`,
-		whiteID, blackID,
+		 VALUES ($1, $2, 'waiting', $3, $4) RETURNING id`,
+		whiteID, blackID, p1.TimeControl, p1.Increment,
 	).Scan(&gameID)
 	return gameID, err
 }

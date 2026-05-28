@@ -310,47 +310,75 @@ func (r *Room) endGame(result, reason string) {
 }
 
 func (r *Room) updateELO(result string, ctx context.Context) {
-	var whiteElo, blackElo int
+	// Legge IDs, time_control e ELO della categoria corretta
 	var whiteID, blackID string
-
+	var timeControl int
 	err := r.pg.Pool.QueryRow(ctx,
-		`SELECT g.white_id, g.black_id, u1.elo_rapid, u2.elo_rapid
-		 FROM games g
-		 JOIN users u1 ON u1.id = g.white_id
-		 JOIN users u2 ON u2.id = g.black_id
-		 WHERE g.id = $1`, r.gameID,
-	).Scan(&whiteID, &blackID, &whiteElo, &blackElo)
+		`SELECT white_id, black_id, time_control FROM games WHERE id = $1`, r.gameID,
+	).Scan(&whiteID, &blackID, &timeControl)
 	if err != nil {
-		log.Printf("updateELO: errore lettura: %v", err)
+		log.Printf("updateELO: errore lettura game: %v", err)
 		return
 	}
+
+	gameType := gameTypeFromTC(timeControl)
+	eloCol := eloColFromType(gameType)
+
+	var whiteElo, blackElo int
+	r.pg.Pool.QueryRow(ctx, `SELECT `+eloCol+` FROM users WHERE id = $1`, whiteID).Scan(&whiteElo)
+	r.pg.Pool.QueryRow(ctx, `SELECT `+eloCol+` FROM users WHERE id = $1`, blackID).Scan(&blackElo)
 
 	// Numero di partite già giocate (per K-factor provvisorio)
 	var whiteGames, blackGames int
 	r.pg.Pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM elo_history WHERE user_id = $1 AND game_type = 'rapid'`,
-		whiteID,
+		`SELECT COUNT(*) FROM elo_history WHERE user_id = $1 AND game_type = $2`,
+		whiteID, gameType,
 	).Scan(&whiteGames)
 	r.pg.Pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM elo_history WHERE user_id = $1 AND game_type = 'rapid'`,
-		blackID,
+		`SELECT COUNT(*) FROM elo_history WHERE user_id = $1 AND game_type = $2`,
+		blackID, gameType,
 	).Scan(&blackGames)
 
 	newWhiteElo, newBlackElo := calculateELO(whiteElo, blackElo, whiteGames, blackGames, result)
 
-	r.pg.Pool.Exec(ctx, `UPDATE users SET elo_rapid=$1 WHERE id=$2`, newWhiteElo, whiteID)
-	r.pg.Pool.Exec(ctx, `UPDATE users SET elo_rapid=$1 WHERE id=$2`, newBlackElo, blackID)
+	r.pg.Pool.Exec(ctx, `UPDATE users SET `+eloCol+`=$1 WHERE id=$2`, newWhiteElo, whiteID)
+	r.pg.Pool.Exec(ctx, `UPDATE users SET `+eloCol+`=$1 WHERE id=$2`, newBlackElo, blackID)
 	r.pg.Pool.Exec(ctx,
 		`INSERT INTO elo_history (user_id, game_id, game_type, elo_before, elo_after)
-		 VALUES ($1,$2,'rapid',$3,$4),($5,$2,'rapid',$6,$7)`,
-		whiteID, r.gameID, whiteElo, newWhiteElo,
+		 VALUES ($1,$2,$3,$4,$5),($6,$2,$3,$7,$8)`,
+		whiteID, r.gameID, gameType, whiteElo, newWhiteElo,
 		blackID, blackElo, newBlackElo,
 	)
 
-	log.Printf("ELO aggiornato — bianco %d→%d (K=%d, partite=%d) | nero %d→%d (K=%d, partite=%d)",
-		whiteElo, newWhiteElo, int(kFactor(whiteElo, whiteGames)), whiteGames,
-		blackElo, newBlackElo, int(kFactor(blackElo, blackGames)), blackGames,
+	log.Printf("ELO [%s] — bianco %d→%d (K=%d) | nero %d→%d (K=%d)",
+		gameType,
+		whiteElo, newWhiteElo, int(kFactor(whiteElo, whiteGames)),
+		blackElo, newBlackElo, int(kFactor(blackElo, blackGames)),
 	)
+}
+
+// gameTypeFromTC classifica il time control come bullet/blitz/rapid.
+func gameTypeFromTC(tc int) string {
+	switch {
+	case tc <= 179:
+		return "bullet"
+	case tc <= 600:
+		return "blitz"
+	default:
+		return "rapid"
+	}
+}
+
+// eloColFromType restituisce il nome della colonna ELO nel DB.
+func eloColFromType(gameType string) string {
+	switch gameType {
+	case "bullet":
+		return "elo_bullet"
+	case "blitz":
+		return "elo_blitz"
+	default:
+		return "elo_rapid"
+	}
 }
 
 // kFactor restituisce il K-factor chess.com per il giocatore.
