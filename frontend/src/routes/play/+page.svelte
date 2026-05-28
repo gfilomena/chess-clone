@@ -41,17 +41,47 @@
 	];
 
 	// Default: Rapid 10 min
-	let selected: TC = $state(CATEGORIES[2].controls[0]);
+	let selected: TC | null = $state(CATEGORIES[2].controls[0]);
+
+	// ── Custom time control ───────────────────────────────────────────────────
+	let customMode = $state(false);
+	let customMin  = $state(5);
+	let customSec  = $state(0);
+	let customInc  = $state(0);
+
+	// Secondi totali del custom
+	const customTcSec = $derived(Math.max(1, customMin * 60 + customSec));
+
+	// Categoria auto-rilevata per il custom
+	function tcType(sec: number): 'bullet' | 'blitz' | 'rapid' {
+		if (sec <= 179) return 'bullet';
+		if (sec <= 600) return 'blitz';
+		return 'rapid';
+	}
+
+	// Label leggibile del custom: "5 min", "5:30", "5:30 | 3"
+	const customLabel = $derived((() => {
+		const m = Math.floor(customTcSec / 60);
+		const s = customTcSec % 60;
+		const time = s === 0 ? `${m} min` : `${m}:${String(s).padStart(2, '0')}`;
+		return customInc > 0 ? `${time} | ${customInc}` : time;
+	})());
+
+	// TC effettivo da usare (preset o custom)
+	const activeTc    = $derived(customMode ? customTcSec          : (selected?.tc  ?? 600));
+	const activeInc   = $derived(customMode ? customInc            : (selected?.inc ?? 0));
+	const activeType  = $derived(customMode ? tcType(customTcSec)  : (selected?.type ?? 'rapid'));
+	const activeLabel = $derived(customMode ? customLabel          : (selected?.label ?? '10 min'));
 
 	// ELO da mostrare in base alla categoria selezionata
-	const myElo = $derived(() => {
+	const myElo = $derived((() => {
 		if (!$user) return '—';
-		switch (selected.type) {
+		switch (activeType) {
 			case 'bullet': return $user.elo_bullet ?? $user.elo_rapid ?? '—';
 			case 'blitz':  return $user.elo_blitz  ?? $user.elo_rapid ?? '—';
 			default:       return $user.elo_rapid  ?? '—';
 		}
-	});
+	})());
 
 	// ── Matchmaking ───────────────────────────────────────────────────────────
 	let mm: 'idle' | 'searching' | 'found' | 'error' = $state('idle');
@@ -94,9 +124,9 @@
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					time_control: selected.tc,
-					increment:    selected.inc,
-					game_type:    selected.type,
+					time_control: activeTc,
+					increment:    activeInc,
+					game_type:    activeType,
 				}),
 			});
 			if (!res.ok) throw new Error();
@@ -186,7 +216,18 @@
 	}
 
 	function isSelected(tc: TC): boolean {
-		return selected.tc === tc.tc && selected.inc === tc.inc;
+		if (customMode) return false;
+		return selected?.tc === tc.tc && selected?.inc === tc.inc;
+	}
+
+	function selectPreset(tc: TC) {
+		selected = tc;
+		customMode = false;
+	}
+
+	function enableCustom() {
+		selected = null;
+		customMode = true;
 	}
 </script>
 
@@ -226,7 +267,7 @@
 								<button
 									class="tc-btn"
 									class:active={isSelected(tc)}
-									onclick={() => { selected = tc; }}
+									onclick={() => selectPreset(tc)}
 									disabled={mm !== 'idle'}
 								>
 									{tc.label}
@@ -236,13 +277,66 @@
 					</div>
 				{/each}
 
+				<!-- ── Sezione personalizzata ──────────────────────────── -->
+				<div class="tc-category">
+					<div class="tc-cat-label">
+						<span class="tc-cat-icon">⚙️</span>
+						Personalizzato
+					</div>
+					<button
+						class="tc-btn custom-toggle"
+						class:active={customMode}
+						onclick={enableCustom}
+						disabled={mm !== 'idle'}
+					>
+						{customMode ? customLabel : 'Imposta...'}
+					</button>
+
+					{#if customMode}
+						<div class="custom-inputs">
+							<div class="custom-field">
+								<label>Minuti</label>
+								<input
+									type="number" min="0" max="180"
+									bind:value={customMin}
+									disabled={mm !== 'idle'}
+								/>
+							</div>
+							<div class="custom-field">
+								<label>Secondi</label>
+								<input
+									type="number" min="0" max="59"
+									bind:value={customSec}
+									disabled={mm !== 'idle'}
+								/>
+							</div>
+							<div class="custom-field">
+								<label>Inc./mossa (s)</label>
+								<input
+									type="number" min="0" max="60"
+									bind:value={customInc}
+									disabled={mm !== 'idle'}
+								/>
+							</div>
+						</div>
+						<p class="custom-preview">
+							<span class="custom-type-badge">{activeType}</span>
+							{customLabel}
+						</p>
+					{/if}
+				</div>
+
 				<!-- ELO info + azioni -->
 				<div class="tc-footer">
 					<span class="tc-elo">
-						Il tuo ELO {selected.type}: <strong>{myElo()}</strong>
+						Il tuo ELO {activeType}: <strong>{myElo}</strong>
 					</span>
 					<div class="play-options">
-						<button class="btn btn-primary play-btn" onclick={startSearch}>
+						<button
+							class="btn btn-primary play-btn"
+							onclick={startSearch}
+							disabled={customMode && customTcSec < 1}
+						>
 							Trova partita
 						</button>
 						<a href="/play/bot" class="bot-btn">
@@ -255,8 +349,8 @@
 		<!-- ── Searching ───────────────────────────────────────────────── -->
 		{:else if mm === 'searching'}
 			<div class="tc-info-badge">
-				{CATEGORIES.find(c => c.controls.some(t => t.tc === selected.tc && t.inc === selected.inc))?.icon}
-				{selected.label} · {selected.type}
+				{customMode ? '⚙️' : (CATEGORIES.find(c => c.controls.some(t => t.tc === selected?.tc && t.inc === selected?.inc))?.icon ?? '🕐')}
+				{activeLabel} · {activeType}
 			</div>
 			<div class="searching-box">
 				<div class="spinner"></div>
@@ -515,5 +609,66 @@
 	.invite-btn {
 		width: auto !important; padding: 0.45rem 1rem !important;
 		font-size: 0.875rem !important; flex-shrink: 0; border-radius: 8px !important;
+	}
+
+	/* ── Custom time control ── */
+	.custom-toggle {
+		width: 100%;
+		font-size: 0.875rem;
+	}
+
+	.custom-inputs {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.6rem;
+		margin-top: 0.25rem;
+	}
+
+	.custom-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.custom-field label {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		font-weight: 600;
+	}
+	.custom-field input {
+		width: 100%;
+		padding: 0.55rem 0.5rem;
+		background: var(--bg);
+		border: 2px solid var(--border);
+		border-radius: 6px;
+		color: var(--text);
+		font-size: 1rem;
+		font-weight: 700;
+		text-align: center;
+		transition: border-color 0.12s;
+	}
+	.custom-field input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+	.custom-field input::-webkit-inner-spin-button { opacity: 0.4; }
+
+	.custom-preview {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		margin-top: 0.25rem;
+	}
+	.custom-type-badge {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border-radius: 4px;
+		padding: 0.1rem 0.4rem;
 	}
 </style>
