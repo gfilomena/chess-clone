@@ -33,8 +33,8 @@
 			<h1 class="tagline">Gli scacchi online,<br>senza distrazioni.</h1>
 			<p class="sub">Rapid · Blitz · Bullet · Bot — tutto gratis.</p>
 			<div class="cta-row">
-				<a href="/register" class="btn btn-primary cta">Inizia a giocare</a>
-				<a href="/login" class="btn-outline">Hai già un account →</a>
+				<a href="/login" class="btn btn-primary cta">Accedi e gioca</a>
+				<a href="/register" class="btn-outline">Crea un account gratis →</a>
 			</div>
 		{/if}
 	</div>

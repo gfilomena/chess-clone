@@ -13,7 +13,8 @@
 
 	let { children } = $props();
 
-	let sidebarOpen = $state(false);
+	let sidebarOpen  = $state(false);
+	let userMenuOpen = $state(false);
 
 	onMount(() => loadUser());
 	onDestroy(() => { stopHeartbeat(); stopInviteSSE(); });
@@ -23,11 +24,12 @@
 		else        { stopHeartbeat(); stopInviteSSE(); }
 	});
 
-	// Chiudi sidebar ad ogni navigazione
+	// Chiudi sidebar e menu utente ad ogni navigazione
 	const currentPath = $derived($page.url.pathname);
 	$effect(() => {
 		currentPath;
-		sidebarOpen = false;
+		sidebarOpen  = false;
+		userMenuOpen = false;
 	});
 
 	async function handleLogout() {
@@ -61,7 +63,25 @@
 	<img src={favicon} alt="" class="mobile-logo-icon" aria-hidden="true" />
 	<span class="mobile-logo-text">Chess Clone</span>
 	{#if $user}
-		<div class="mobile-user-chip">{initial}</div>
+		<div class="user-chip-wrap">
+			<button
+				class="mobile-user-chip"
+				onclick={() => userMenuOpen = !userMenuOpen}
+				aria-label="Menu utente"
+			>{initial}</button>
+			{#if userMenuOpen}
+				<!-- Backdrop invisibile per chiudere cliccando fuori -->
+				<div class="user-menu-backdrop" onclick={() => userMenuOpen = false} aria-hidden="true"></div>
+				<div class="user-dropdown">
+					<a href="/profile/{$user.id}" class="dropdown-item" onclick={() => userMenuOpen = false}>
+						👤 Il mio profilo
+					</a>
+					<button class="dropdown-item dropdown-logout" onclick={handleLogout}>
+						⏏ Esci
+					</button>
+				</div>
+			{/if}
+		</div>
 	{/if}
 </header>
 
@@ -104,11 +124,13 @@
 		<div class="sidebar-bottom">
 			{#if $user}
 				<div class="user-row">
-					<div class="user-avatar">{initial}</div>
-					<div class="user-info">
+					<a href="/profile/{$user.id}" class="user-avatar-link" onclick={() => sidebarOpen = false}>
+						<div class="user-avatar">{initial}</div>
+					</a>
+					<a href="/profile/{$user.id}" class="user-info" onclick={() => sidebarOpen = false}>
 						<div class="user-name">{$user.username}</div>
 						<div class="user-elo">{$user.elo_rapid} ELO</div>
-					</div>
+					</a>
 					<button class="logout-btn" onclick={handleLogout} title="Esci">⏏</button>
 				</div>
 			{:else}

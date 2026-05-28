@@ -162,9 +162,15 @@ a:hover { text-decoration: underline; }
 	flex-shrink: 0;
 }
 
+.user-avatar-link {
+	display: flex;
+	flex-shrink: 0;
+	text-decoration: none;
+}
 .user-info {
 	flex: 1;
 	min-width: 0;
+	text-decoration: none;
 }
 .user-name {
 	font-size: 0.85rem;
@@ -352,6 +358,10 @@ a:hover { text-decoration: underline; }
 	color: var(--accent);
 	flex: 1;
 }
+.user-chip-wrap {
+	position: relative;
+	flex-shrink: 0;
+}
 .mobile-user-chip {
 	width: 30px; height: 30px;
 	border-radius: 50%;
@@ -360,8 +370,47 @@ a:hover { text-decoration: underline; }
 	font-weight: 700;
 	font-size: 0.8rem;
 	display: flex; align-items: center; justify-content: center;
-	flex-shrink: 0;
+	border: none;
+	cursor: pointer;
+	transition: opacity 0.15s;
 }
+.mobile-user-chip:hover { opacity: 0.85; }
+.user-menu-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 290;
+}
+.user-dropdown {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	background: var(--sidebar);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 0.3rem;
+	min-width: 170px;
+	z-index: 300;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+.dropdown-item {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.6rem 0.8rem;
+	border-radius: 7px;
+	font-size: 0.88rem;
+	color: var(--text);
+	text-decoration: none;
+	cursor: pointer;
+	width: 100%;
+	background: none;
+	border: none;
+	text-align: left;
+	transition: background 0.12s;
+	white-space: nowrap;
+}
+.dropdown-item:hover { background: rgba(255,255,255,0.07); }
+.dropdown-logout { color: #e05050; }
 
 /* ── Sidebar backdrop ──────────────────────────────────────── */
 .sidebar-backdrop {
