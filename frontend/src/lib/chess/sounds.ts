@@ -43,7 +43,7 @@ export const THEME_KEYS = Object.keys(THEMES) as SoundTheme[];
 // ── Stato globale ────────────────────────────────────────────────────────────
 
 export const soundTheme = writable<SoundTheme>(
-	(browser && (localStorage.getItem('soundTheme') as SoundTheme)) || 'wood'
+	(browser && (localStorage.getItem('soundTheme') as SoundTheme)) || 'wood-real'
 );
 
 let muted = false;

@@ -5,7 +5,7 @@
 	import Board from '$lib/chess/Board.svelte';
 	import { StockfishEngine } from '$lib/chess/stockfish';
 	import { user, authLoading } from '$lib/stores/auth';
-	import { initSounds, playSound, toggleMute, cycleTheme, soundTheme, themeLabel } from '$lib/chess/sounds';
+	import { initSounds, playSound } from '$lib/chess/sounds';
 	import { computeCaptured } from '$lib/chess/captured';
 
 	// ── Auth guard ────────────────────────────────────────────────────────────
@@ -131,9 +131,7 @@
 	let engine: StockfishEngine | null = null;
 	let engineReady = $state(false);
 
-	let muted = $state(false);
 	let panelOpen = $state(false);
-	const currentTheme = $derived($soundTheme);
 
 	onMount(async () => {
 		initSounds();
@@ -141,8 +139,6 @@
 		await engine.init();
 		engineReady = true;
 	});
-
-	function handleToggleMute() { muted = toggleMute(); }
 
 	onDestroy(() => {
 		engine?.destroy();
@@ -543,16 +539,6 @@
 				{/if}
 			</div>
 
-			<!-- Audio controls -->
-			<div class="audio-row">
-				<button class="mute-btn" onclick={handleToggleMute} title={muted ? 'Attiva audio' : 'Disattiva audio'}>
-					{muted ? '🔇' : '🔊'}
-				</button>
-				<button class="theme-btn" onclick={() => cycleTheme()} title="Cambia tema sonoro">
-					{themeLabel(currentTheme)}
-				</button>
-			</div>
-
 			<!-- Navigazione mosse -->
 			<div class="nav-row" class:reviewing={isReviewing}>
 				<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
@@ -922,39 +908,6 @@
 	border-color: #e6a817;
 	color: #e6a817;
 }
-
-.audio-row {
-	display: flex;
-	gap: 0.4rem;
-}
-.mute-btn {
-	background: none;
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	color: var(--text-muted);
-	font-size: 1rem;
-	padding: 0.4rem 0.6rem;
-	cursor: pointer;
-	flex-shrink: 0;
-	transition: border-color 0.15s, color 0.15s;
-}
-.mute-btn:hover { border-color: var(--accent); color: var(--text); }
-.theme-btn {
-	background: none;
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	color: var(--text-muted);
-	font-size: 0.78rem;
-	padding: 0.4rem 0.6rem;
-	cursor: pointer;
-	flex: 1;
-	text-align: left;
-	transition: border-color 0.15s, color 0.15s;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.theme-btn:hover { border-color: var(--accent); color: var(--text); }
 
 /* ── Mobile moves strip & nav bar (nascosti su desktop) ── */
 .mobile-moves-strip { display: none; }

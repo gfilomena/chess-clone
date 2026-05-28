@@ -7,14 +7,12 @@
 	import { gameState, resetGame } from '$lib/stores/game';
 	import { connectToGame, sendMove, sendResign, sendOfferDraw, sendDrawResponse, disconnect } from '$lib/ws/socket';
 	import { user } from '$lib/stores/auth';
-	import { initSounds, playSound, toggleMute, cycleTheme, soundTheme, themeLabel, type SoundName } from '$lib/chess/sounds';
+	import { initSounds, playSound, type SoundName } from '$lib/chess/sounds';
 	import { computeCaptured } from '$lib/chess/captured';
 
 	const gameId = $page.params.id!;
 
-	let muted = $state(false);
 	let panelOpen = $state(false);
-	const currentTheme = $derived($soundTheme);
 
 	// ── Move navigation ─────────────────────────────────────────────
 	interface HistoryEntry {
@@ -112,10 +110,6 @@
 		resetGame();
 		connectToGame(gameId);
 	});
-
-	function handleToggleMute() {
-		muted = toggleMute();
-	}
 
 	onDestroy(() => {
 		disconnect();
@@ -356,16 +350,6 @@
 			</div>
 		{/if}
 
-		<!-- Audio controls -->
-		<div class="audio-row">
-			<button class="mute-btn" onclick={handleToggleMute} title={muted ? 'Attiva audio' : 'Disattiva audio'}>
-				{muted ? '🔇' : '🔊'}
-			</button>
-			<button class="theme-btn" onclick={() => cycleTheme()} title="Cambia tema sonoro">
-				{themeLabel(currentTheme)}
-			</button>
-		</div>
-
 		<!-- Navigazione mosse -->
 		<div class="nav-row" class:reviewing={isReviewing}>
 			<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
@@ -543,39 +527,6 @@
 		border-color: var(--accent);
 		color: var(--accent);
 	}
-
-	.audio-row {
-		display: flex;
-		gap: 0.4rem;
-	}
-	.mute-btn {
-		background: none;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		color: var(--text-muted);
-		font-size: 1rem;
-		padding: 0.4rem 0.6rem;
-		cursor: pointer;
-		flex-shrink: 0;
-		transition: border-color 0.15s, color 0.15s;
-	}
-	.mute-btn:hover { border-color: var(--accent); color: var(--text); }
-	.theme-btn {
-		background: none;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		color: var(--text-muted);
-		font-size: 0.78rem;
-		padding: 0.4rem 0.6rem;
-		cursor: pointer;
-		flex: 1;
-		text-align: left;
-		transition: border-color 0.15s, color 0.15s;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.theme-btn:hover { border-color: var(--accent); color: var(--text); }
 
 	/* ── Mobile moves strip & nav bar (nascosti su desktop) ── */
 	.mobile-moves-strip { display: none; }
