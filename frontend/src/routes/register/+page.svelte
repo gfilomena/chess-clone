@@ -2,6 +2,7 @@
 	import { register, user, authLoading } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
 	import { API_URL } from '$lib/config';
+	import { t } from '$lib/i18n';
 
 	// Se già autenticato → vai alla home
 	$effect(() => {
@@ -22,11 +23,11 @@
 		error = '';
 
 		if (password !== confirm) {
-			error = 'Le password non coincidono';
+			error = $t.auth.err_passwords;
 			return;
 		}
 		if (password.length < 8) {
-			error = 'La password deve avere almeno 8 caratteri';
+			error = $t.auth.err_pwd_len;
 			return;
 		}
 
@@ -35,7 +36,7 @@
 			await register(username, email, password);
 			goto('/');
 		} catch (err: any) {
-			error = err.message ?? 'Errore durante la registrazione';
+			error = err.message ?? $t.auth.err_register;
 		} finally {
 			loading = false;
 		}
@@ -43,7 +44,7 @@
 </script>
 
 <svelte:head>
-	<title>Registrati — Chess</title>
+	<title>Chess</title>
 </svelte:head>
 
 {#if $authLoading}
@@ -52,7 +53,7 @@
 	</div>
 {:else}
 <div class="form-card">
-	<h1>Crea account</h1>
+	<h1>{$t.auth.register_title}</h1>
 
 	{#if error}
 		<div class="error-msg">{error}</div>
@@ -60,7 +61,7 @@
 
 	<form onsubmit={handleRegister}>
 		<div class="field">
-			<label for="username">Username</label>
+			<label for="username">{$t.auth.username}</label>
 			<input
 				id="username"
 				type="text"
@@ -74,24 +75,24 @@
 		</div>
 
 		<div class="field">
-			<label for="email">Email</label>
+			<label for="email">{$t.auth.email}</label>
 			<input
 				id="email"
 				type="email"
 				bind:value={email}
-				placeholder="tuaemail@esempio.com"
+				placeholder={$t.auth.email_placeholder}
 				required
 				autocomplete="email"
 			/>
 		</div>
 
 		<div class="field">
-			<label for="password">Password</label>
+			<label for="password">{$t.auth.password}</label>
 			<input
 				id="password"
 				type="password"
 				bind:value={password}
-				placeholder="min. 8 caratteri"
+				placeholder={$t.auth.pwd_placeholder}
 				required
 				minlength="8"
 				autocomplete="new-password"
@@ -99,7 +100,7 @@
 		</div>
 
 		<div class="field">
-			<label for="confirm">Conferma password</label>
+			<label for="confirm">{$t.auth.confirm_password}</label>
 			<input
 				id="confirm"
 				type="password"
@@ -111,11 +112,11 @@
 		</div>
 
 		<button class="btn btn-primary" type="submit" disabled={loading}>
-			{loading ? 'Registrazione...' : 'Crea account'}
+			{loading ? $t.auth.register_loading : $t.auth.register_btn}
 		</button>
 	</form>
 
-	<div class="divider">oppure</div>
+	<div class="divider">{$t.auth.or}</div>
 
 	<a href="{API_URL}/api/auth/google" class="btn btn-google">
 		<svg width="18" height="18" viewBox="0 0 48 48">
@@ -124,11 +125,11 @@
 			<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
 			<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
 		</svg>
-		Continua con Google
+		{$t.auth.google}
 	</a>
 
 	<p class="form-footer">
-		Hai già un account? <a href="/login">Accedi</a>
+		{$t.auth.have_account} <a href="/login">{$t.auth.sign_in}</a>
 	</p>
 </div>
 {/if}

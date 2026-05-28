@@ -2,6 +2,7 @@
 	import { login, devLogin, user, authLoading } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
 	import { API_URL, DEV_MODE } from '$lib/config';
+	import { t } from '$lib/i18n';
 
 	// Se già autenticato → vai alla home
 	$effect(() => {
@@ -27,7 +28,7 @@
 			await login(email, password);
 			goto('/');
 		} catch (err: any) {
-			error = err.message ?? 'Errore durante il login';
+			error = err.message ?? $t.auth.err_login;
 		} finally {
 			loading = false;
 		}
@@ -49,33 +50,31 @@
 </script>
 
 <svelte:head>
-	<title>Accedi — Chess</title>
+	<title>Chess</title>
 </svelte:head>
 
 {#if $authLoading}
-	<!-- Spinner mentre verifica la sessione — evita il flash del form -->
 	<div class="auth-checking">
 		<div class="auth-spinner"></div>
 	</div>
 
 {:else}
 	<div class="form-card">
-		<h1>Accedi</h1>
+		<h1>{$t.auth.login_title}</h1>
 
 		{#if error}
 			<div class="error-msg">{error}</div>
 		{/if}
 
 		{#if DEV_MODE}
-			<!-- ── Banner DEV ──────────────────────────────────────────────── -->
 			<div class="dev-banner">
 				<span class="dev-badge">DEV</span>
-				Login rapido — solo username
+				{$t.auth.dev_quick}
 			</div>
 
 			<form onsubmit={handleDevLogin}>
 				<div class="field">
-					<label for="dev-username">Username</label>
+					<label for="dev-username">{$t.auth.username}</label>
 					<input
 						id="dev-username"
 						type="text"
@@ -87,29 +86,28 @@
 				</div>
 
 				<button class="btn btn-primary" type="submit" disabled={loading || !devUsername.trim()}>
-					{loading ? 'Accesso...' : '⚡ Accedi (DEV)'}
+					{loading ? $t.auth.login_loading : $t.auth.dev_btn}
 				</button>
 			</form>
 
-			<div class="divider">oppure login completo</div>
+			<div class="divider">{$t.auth.dev_or}</div>
 		{/if}
 
-		<!-- ── Login normale ───────────────────────────────────────────────── -->
 		<form onsubmit={handleLogin}>
 			<div class="field">
-				<label for="email">Email</label>
+				<label for="email">{$t.auth.email}</label>
 				<input
 					id="email"
 					type="email"
 					bind:value={email}
-					placeholder="tuaemail@esempio.com"
+					placeholder={$t.auth.email_placeholder}
 					required
 					autocomplete="email"
 				/>
 			</div>
 
 			<div class="field">
-				<label for="password">Password</label>
+				<label for="password">{$t.auth.password}</label>
 				<input
 					id="password"
 					type="password"
@@ -121,11 +119,11 @@
 			</div>
 
 			<button class="btn btn-primary" type="submit" disabled={loading}>
-				{loading ? 'Accesso in corso...' : 'Accedi'}
+				{loading ? $t.auth.login_loading : $t.auth.login_btn}
 			</button>
 		</form>
 
-		<div class="divider">oppure</div>
+		<div class="divider">{$t.auth.or}</div>
 
 		<a href="{API_URL}/api/auth/google" class="btn btn-google">
 			<svg width="18" height="18" viewBox="0 0 48 48">
@@ -134,11 +132,11 @@
 				<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
 				<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
 			</svg>
-			Continua con Google
+			{$t.auth.google}
 		</a>
 
 		<p class="form-footer">
-			Non hai un account? <a href="/register">Registrati</a>
+			{$t.auth.no_account} <a href="/register">{$t.auth.sign_up}</a>
 		</p>
 	</div>
 {/if}

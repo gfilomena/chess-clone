@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { API_URL } from '$lib/config';
 	import { user } from '$lib/stores/auth';
+	import { t } from '$lib/i18n';
 
 	interface Entry {
 		id: string;
@@ -18,10 +19,10 @@
 	onMount(async () => {
 		try {
 			const res = await fetch(`${API_URL}/api/leaderboard`, { credentials: 'include' });
-			if (!res.ok) throw new Error('Errore server');
+			if (!res.ok) throw new Error('server error');
 			entries = await res.json();
 		} catch {
-			error = 'Impossibile caricare la classifica.';
+			error = 'err';
 		} finally {
 			loading = false;
 		}
@@ -40,30 +41,30 @@
 </script>
 
 <svelte:head>
-	<title>Classifica — Chess</title>
+	<title>Chess</title>
 </svelte:head>
 
 <div class="page">
 	<div class="header">
-		<h1>🏆 Classifica</h1>
-		<p class="sub">Top 50 giocatori per ELO Rapid</p>
+		<h1>{$t.leaderboard.title}</h1>
+		<p class="sub">{$t.leaderboard.sub}</p>
 	</div>
 
 	{#if loading}
-		<div class="state-msg">Caricamento...</div>
+		<div class="state-msg">{$t.leaderboard.loading}</div>
 	{:else if error}
-		<div class="state-msg error">{error}</div>
+		<div class="state-msg error">{$t.leaderboard.error}</div>
 	{:else if entries.length === 0}
-		<div class="state-msg">Nessun giocatore ancora.</div>
+		<div class="state-msg">{$t.leaderboard.empty}</div>
 	{:else}
 		<div class="table-wrap">
 			<table>
 				<thead>
 					<tr>
-						<th class="col-rank">#</th>
-						<th class="col-player">Giocatore</th>
-						<th class="col-elo">ELO Rapid</th>
-						<th class="col-games">Partite</th>
+						<th class="col-rank">{$t.leaderboard.rank}</th>
+						<th class="col-player">{$t.leaderboard.player}</th>
+						<th class="col-elo">{$t.leaderboard.elo}</th>
+						<th class="col-games">{$t.leaderboard.games}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -80,7 +81,7 @@
 									</div>
 									<span class="username" class:me-name={isMe}>
 										{entry.username}
-										{#if isMe}<span class="you-tag">tu</span>{/if}
+										{#if isMe}<span class="you-tag">{$t.leaderboard.you}</span>{/if}
 									</span>
 								</a>
 							</td>

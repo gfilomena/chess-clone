@@ -5,6 +5,7 @@
 	import Board from '$lib/chess/Board.svelte';
 	import { StockfishEngine, evalToPercent, formatScore, classifyMove, type AnalysisResult, type MoveClassification } from '$lib/chess/stockfish';
 	import { API_URL as API } from '$lib/config';
+	import { t } from '$lib/i18n';
 
 	const gameId = $page.params.id;
 
@@ -208,7 +209,11 @@
 
 	function resultBadge(result: string | null): string {
 		if (!result) return '';
-		return { white: 'Bianco vince', black: 'Nero vince', draw: 'Patta' }[result] ?? result;
+		return ({
+			white: $t.result.white_wins,
+			black: $t.result.black_wins,
+			draw:  $t.result.draw
+		} as Record<string,string>)[result] ?? result;
 	}
 
 	/** Badge classificazione sull'angolo in alto a destra del pezzo mosso */
@@ -242,13 +247,13 @@
 </script>
 
 <svelte:head>
-	<title>Analisi — Chess</title>
+	<title>Chess</title>
 </svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />
 
 {#if loading}
-	<div class="center"><p>Caricamento partita...</p></div>
+	<div class="center"><p>{$t.analysis.loading}</p></div>
 {:else if error}
 	<div class="center"><p class="error-msg">{error}</p></div>
 {:else}
@@ -297,29 +302,29 @@
 			{#if currentClassification}
 				<div class="move-badge-bar" style="--clr:{currentClassification.color}">
 					<span class="badge-symbol">{currentClassification.symbol}</span>
-					<span class="badge-label">{currentClassification.label}</span>
+					<span class="badge-label">{($t.classifications as any)[currentClassification.key]}</span>
 					{#if currentClassification.delta > 5}
-						<span class="badge-delta">−{(currentClassification.delta / 100).toFixed(1)} pnt</span>
+						<span class="badge-delta">−{(currentClassification.delta / 100).toFixed(1)} {$t.analysis.loss_pts}</span>
 					{/if}
 					{#if reviewData[currentIdx - 1]?.bestMove && reviewData[currentIdx - 1].bestMove !== '(none)'}
 						{@const bm = reviewData[currentIdx - 1].bestMove}
 						{@const played = moveUcis[currentIdx - 1] ?? ''}
 						{#if bm.slice(0,4) !== played.slice(0,4)}
 							<span class="badge-best">
-								migliore: {bm.slice(0,2)}→{bm.slice(2,4)}
+								{$t.analysis.best_move}: {bm.slice(0,2)}→{bm.slice(2,4)}
 							</span>
 						{/if}
 					{/if}
 				</div>
 			{:else if currentIdx === 0}
-				<div class="move-badge-bar neutral">Posizione iniziale</div>
+				<div class="move-badge-bar neutral">{$t.analysis.initial_pos}</div>
 			{/if}
 		{:else}
 			<div class="engine-info">
 				{#if analyzing}
-					<span class="analyzing">⚙ Analisi in corso...</span>
+					<span class="analyzing">{$t.analysis.engine_analyzing}</span>
 				{:else if analysis}
-					<span>Depth {analysis.depth}</span>
+					<span>{$t.analysis.depth} {analysis.depth}</span>
 					<span class="score-text" class:positive={analysis.score > 0} class:negative={analysis.score < 0}>
 						{evalText}
 					</span>
@@ -333,7 +338,7 @@
 
 	<!-- Pannello mosse + azioni -->
 	<div class="moves-col">
-		<h3>Mosse</h3>
+		<h3>{$t.analysis.moves}</h3>
 		<div class="moves-list">
 			{#each moveLabels as label, i}
 				{@const cls = i > 0 ? (moveClassifications[i - 1] ?? null) : null}
@@ -365,18 +370,18 @@
 					<span class="summary-player-head">♟</span>
 				</div>
 				{#each [
-					{ key:'best',       label:'Geniale',       symbol:'!!', color:'#5B8E55' },
-					{ key:'excellent',  label:'Grande',        symbol:'!',  color:'#81B64C' },
-					{ key:'good',       label:'Migliore',      symbol:'',   color:'#5080C0' },
-					{ key:'inaccuracy', label:'Errore',        symbol:'?!', color:'#C9A020' },
-					{ key:'mistake',    label:'Mossa mancata', symbol:'?',  color:'#D97706' },
-					{ key:'blunder',    label:'Errore grave',  symbol:'??', color:'#DC2626' },
+					{ key:'best',       symbol:'!!', color:'#5B8E55' },
+					{ key:'excellent',  symbol:'!',  color:'#81B64C' },
+					{ key:'good',       symbol:'',   color:'#5080C0' },
+					{ key:'inaccuracy', symbol:'?!', color:'#C9A020' },
+					{ key:'mistake',    symbol:'?',  color:'#D97706' },
+					{ key:'blunder',    symbol:'??', color:'#DC2626' },
 				] as row}
 					{@const counts = reviewSummary[row.key]}
 					{#if counts && (counts.white + counts.black) > 0}
 						<div class="summary-row">
 							<span class="summary-sym" style="color:{row.color}">{row.symbol || '·'}</span>
-							<span class="summary-lbl">{row.label}</span>
+							<span class="summary-lbl">{($t.classifications as any)[row.key]}</span>
 							<span class="summary-cnt">{counts.white}</span>
 							<span class="summary-cnt">{counts.black}</span>
 						</div>
@@ -392,15 +397,15 @@
 					<div class="progress-bar">
 						<div class="progress-fill" style="width:{progressPct}%"></div>
 					</div>
-					<span class="progress-label">Analisi {reviewProgress}/{reviewTotal} posizioni…</span>
+					<span class="progress-label">{$t.analysis.progress(reviewProgress, reviewTotal)}</span>
 				</div>
 			{:else if reviewDone}
 				<button class="btn btn-google" style="width:100%;font-size:0.8rem" onclick={exitReview}>
-					← Torna ad analisi live
+					{$t.analysis.back_live}
 				</button>
 			{:else}
 				<button class="btn btn-primary" style="width:100%;font-size:0.88rem" onclick={startReview}>
-					🔍 Avvia Revisione
+					{$t.analysis.start_review}
 				</button>
 			{/if}
 		</div>
@@ -410,8 +415,8 @@
 				href={`${API}/api/games/${gameId}/pgn`}
 				class="btn btn-google"
 				style="text-align:center"
-			>⬇ Scarica PGN</a>
-			<a href="/" class="btn btn-primary" style="text-align:center">Nuova partita</a>
+			>{$t.analysis.download_pgn}</a>
+			<a href="/" class="btn btn-primary" style="text-align:center">{$t.analysis.new_game}</a>
 		</div>
 	</div>
 

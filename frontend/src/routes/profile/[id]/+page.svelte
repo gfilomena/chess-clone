@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { user as currentUser } from '$lib/stores/auth';
 	import { API_URL as API } from '$lib/config';
+	import { t } from '$lib/i18n';
 
 	const userId = $page.params.id;
 
@@ -22,7 +23,7 @@
 
 			const [p, s, g] = await Promise.all([pRes.json(), sRes.json(), gRes.json()]);
 
-			if (!p.success) throw new Error('Utente non trovato');
+			if (!p.success) throw new Error($t.profile.not_found);
 			profile = p.data;
 			stats = s.data;
 			games = g.data ?? [];
@@ -72,7 +73,7 @@
 
 {#if loading}
 	<div style="text-align:center;padding:4rem">
-		<p style="color:var(--text-muted)">Caricamento profilo...</p>
+		<p style="color:var(--text-muted)">{$t.profile.loading}</p>
 	</div>
 {:else if error}
 	<div style="text-align:center;padding:4rem">
@@ -94,13 +95,13 @@
 		<div class="profile-info">
 			<h1>{profile.username}</h1>
 			<p style="color:var(--text-muted);font-size:0.9rem">
-				Membro dal {formatDate(profile.created_at)}
+				{$t.profile.member_since} {formatDate(profile.created_at)}
 			</p>
 		</div>
 
 		{#if isOwnProfile}
 			<a href="/play" class="btn btn-primary" style="width:auto;padding:0.6rem 1.2rem">
-				♟ Gioca
+				{$t.profile.play}
 			</a>
 		{/if}
 	</div>
@@ -126,23 +127,23 @@
 	<div class="stats-bar">
 		<div class="stat-block">
 			<span class="stat-num win">{stats.wins}</span>
-			<span class="stat-label">Vinte</span>
+			<span class="stat-label">{$t.profile.wins}</span>
 		</div>
 		<div class="stat-block">
 			<span class="stat-num draw">{stats.draws}</span>
-			<span class="stat-label">Patte</span>
+			<span class="stat-label">{$t.profile.draws}</span>
 		</div>
 		<div class="stat-block">
 			<span class="stat-num loss">{stats.losses}</span>
-			<span class="stat-label">Perse</span>
+			<span class="stat-label">{$t.profile.losses}</span>
 		</div>
 		<div class="stat-block">
 			<span class="stat-num">{stats.total}</span>
-			<span class="stat-label">Totali</span>
+			<span class="stat-label">{$t.profile.total}</span>
 		</div>
 		<div class="stat-block">
 			<span class="stat-num accent">{winRate()}%</span>
-			<span class="stat-label">Win rate</span>
+			<span class="stat-label">{$t.profile.win_rate}</span>
 		</div>
 	</div>
 
@@ -158,18 +159,18 @@
 
 	<!-- Storico partite -->
 	<div class="games-section">
-		<h2>Ultime partite</h2>
+		<h2>{$t.profile.recent_games}</h2>
 		{#if games.length === 0}
-			<p style="color:var(--text-muted)">Nessuna partita giocata.</p>
+			<p style="color:var(--text-muted)">{$t.profile.no_games}</p>
 		{:else}
 			<table class="games-table">
 				<thead>
 					<tr>
-						<th>Risultato</th>
-						<th>Avversario</th>
-						<th>Motivo</th>
+						<th>{$t.profile.result}</th>
+						<th>{$t.profile.opponent}</th>
+						<th>{$t.profile.reason}</th>
 						<th>ELO</th>
-						<th>Data</th>
+						<th>{$t.profile.date}</th>
 						<th></th>
 					</tr>
 				</thead>
@@ -179,7 +180,7 @@
 						<tr>
 							<td>
 								<span class="result-badge {res}">
-									{res === 'win' ? 'V' : res === 'loss' ? 'S' : 'P'}
+									{res === 'win' ? $t.profile.win_abbr : res === 'loss' ? $t.profile.loss_abbr : $t.profile.draw_abbr}
 								</span>
 							</td>
 							<td>{opponent(game)}</td>
@@ -194,7 +195,7 @@
 							</td>
 							<td>
 								<a href="/analysis/{game.id}" style="font-size:0.8rem;color:var(--accent)">
-									Analizza
+									{$t.profile.analyze}
 								</a>
 							</td>
 						</tr>

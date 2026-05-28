@@ -1,10 +1,11 @@
 <script lang="ts">
 	import logo from '$lib/assets/logo.svg';
 	import { user, authLoading } from '$lib/stores/auth';
+	import { t } from '$lib/i18n';
 </script>
 
 <svelte:head>
-	<title>Chess — Gioca agli scacchi online</title>
+	<title>Chess</title>
 </svelte:head>
 
 <div class="home">
@@ -15,26 +16,26 @@
 		<img src={logo} alt="Chess" class="logo" draggable="false" />
 
 		{#if $authLoading}
-			<p class="muted">Caricamento...</p>
+			<p class="muted">{$t.home.loading}</p>
 
 		{:else if $user}
-			<p class="welcome">Bentornato, <strong>{$user.username}</strong>!</p>
+			<p class="welcome">{$t.home.welcome}, <strong>{$user.username}</strong>!</p>
 			<div class="elo-row">
 				<span class="elo-chip bullet">🚀 {$user.elo_bullet ?? 100} Bullet</span>
 				<span class="elo-chip blitz">⚡ {$user.elo_blitz ?? 100} Blitz</span>
 				<span class="elo-chip rapid">🕐 {$user.elo_rapid ?? 100} Rapid</span>
 			</div>
 			<div class="cta-row">
-				<a href="/play" class="btn btn-primary cta">▶ Gioca una partita</a>
-				<a href="/play/bot" class="btn-outline">🤖 vs Bot</a>
+				<a href="/play" class="btn btn-primary cta">{$t.home.play_game}</a>
+				<a href="/play/bot" class="btn-outline">{$t.home.vs_bot}</a>
 			</div>
 
 		{:else}
-			<h1 class="tagline">Gli scacchi online,<br>senza distrazioni.</h1>
-			<p class="sub">Rapid · Blitz · Bullet · Bot — tutto gratis.</p>
+			<h1 class="tagline">{@html $t.home.tagline.replace('\n', '<br>')}</h1>
+			<p class="sub">{$t.home.sub}</p>
 			<div class="cta-row">
-				<a href="/login" class="btn btn-primary cta">Accedi e gioca</a>
-				<a href="/register" class="btn-outline">Crea un account gratis →</a>
+				<a href="/login" class="btn btn-primary cta">{$t.home.cta_login}</a>
+				<a href="/register" class="btn-outline">{$t.home.cta_register}</a>
 			</div>
 		{/if}
 	</div>
@@ -43,19 +44,19 @@
 	<div class="features">
 		<div class="feat">
 			<span class="feat-icon">♜</span>
-			<span>Matchmaking ELO</span>
+			<span>{$t.home.feat_matchmaking}</span>
 		</div>
 		<div class="feat">
 			<span class="feat-icon">🤖</span>
-			<span>Bot Stockfish</span>
+			<span>{$t.home.feat_bot}</span>
 		</div>
 		<div class="feat">
 			<span class="feat-icon">⚡</span>
-			<span>Bullet · Blitz · Rapid</span>
+			<span>{$t.home.feat_formats}</span>
 		</div>
 		<div class="feat">
 			<span class="feat-icon">📱</span>
-			<span>Mobile friendly</span>
+			<span>{$t.home.feat_mobile}</span>
 		</div>
 	</div>
 

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
-	import logoSvg from '$lib/assets/logo.svg';
 	import '../app.css';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
@@ -10,6 +9,7 @@
 		startInviteSSE, stopInviteSSE
 	} from '$lib/stores/invitations';
 	import InviteToast from '$lib/components/InviteToast.svelte';
+	import { t, lang, setLang, LANGS } from '$lib/i18n';
 
 	let { children } = $props();
 
@@ -70,14 +70,13 @@
 				aria-label="Menu utente"
 			>{initial}</button>
 			{#if userMenuOpen}
-				<!-- Backdrop invisibile per chiudere cliccando fuori -->
 				<div class="user-menu-backdrop" onclick={() => userMenuOpen = false} aria-hidden="true"></div>
 				<div class="user-dropdown">
 					<a href="/profile/{$user.id}" class="dropdown-item" onclick={() => userMenuOpen = false}>
-						👤 Il mio profilo
+						👤 {$t.user.profile}
 					</a>
 					<button class="dropdown-item dropdown-logout" onclick={handleLogout}>
-						⏏ Esci
+						⏏ {$t.user.logout}
 					</button>
 				</div>
 			{/if}
@@ -106,13 +105,12 @@
 		<nav class="sidebar-nav">
 			<a href="/play" class="nav-item" class:active={isActive('/play')} onclick={() => sidebarOpen = false}>
 				<span class="nav-icon">🎮</span>
-				<span>Gioca</span>
+				<span>{$t.nav.play}</span>
 			</a>
 			<a href="/leaderboard" class="nav-item" class:active={isActive('/leaderboard')} onclick={() => sidebarOpen = false}>
 				<span class="nav-icon">🏆</span>
-				<span>Classifica</span>
+				<span>{$t.nav.leaderboard}</span>
 			</a>
-
 		</nav>
 
 		<div class="sidebar-bottom">
@@ -125,18 +123,30 @@
 						<div class="user-name">{$user.username}</div>
 						<div class="user-elo">{$user.elo_rapid} ELO</div>
 					</a>
-					<button class="logout-btn" onclick={handleLogout} title="Esci">⏏</button>
+					<button class="logout-btn" onclick={handleLogout} title={$t.user.logout}>⏏</button>
 				</div>
 			{:else}
 				<a href="/login" class="nav-item" onclick={() => sidebarOpen = false}>
 					<span class="nav-icon">🔑</span>
-					<span>Accedi</span>
+					<span>{$t.auth.sign_in}</span>
 				</a>
 				<a href="/register" class="nav-item" onclick={() => sidebarOpen = false}>
 					<span class="nav-icon">✨</span>
-					<span>Registrati</span>
+					<span>{$t.auth.sign_up}</span>
 				</a>
 			{/if}
+
+			<!-- Language switcher -->
+			<div class="lang-switcher">
+				{#each LANGS as l}
+					<button
+						class="lang-btn"
+						class:active={$lang === l.code}
+						onclick={() => setLang(l.code)}
+						title={l.label}
+					>{l.flag}</button>
+				{/each}
+			</div>
 		</div>
 	</aside>
 
@@ -149,3 +159,29 @@
 
 <!-- Toast inviti — visibile in ogni pagina -->
 <InviteToast />
+
+<style>
+	.lang-switcher {
+		display: flex;
+		gap: 0.35rem;
+		padding: 0.6rem 0.5rem 0.3rem;
+		border-top: 1px solid var(--border);
+		margin-top: 0.5rem;
+	}
+	.lang-btn {
+		background: none;
+		border: 1.5px solid transparent;
+		border-radius: 6px;
+		padding: 0.2rem 0.3rem;
+		font-size: 1.1rem;
+		cursor: pointer;
+		opacity: 0.5;
+		transition: opacity 0.15s, border-color 0.15s;
+		line-height: 1;
+	}
+	.lang-btn:hover { opacity: 0.8; }
+	.lang-btn.active {
+		opacity: 1;
+		border-color: var(--accent);
+	}
+</style>
