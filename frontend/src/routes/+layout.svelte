@@ -113,12 +113,6 @@
 				<span>Classifica</span>
 			</a>
 
-			<div class="nav-divider"></div>
-
-			<span class="nav-item disabled">
-				<span class="nav-icon">⋯</span>
-				<span>Altro</span>
-			</span>
 		</nav>
 
 		<div class="sidebar-bottom">
