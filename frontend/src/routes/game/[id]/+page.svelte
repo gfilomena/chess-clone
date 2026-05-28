@@ -185,7 +185,7 @@
 </script>
 
 <svelte:head>
-	<title>Partita — Chess Clone</title>
+	<title>Partita — Chess</title>
 </svelte:head>
 
 <div class="game-layout">

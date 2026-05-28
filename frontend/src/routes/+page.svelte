@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-	<title>Chess Clone — Gioca agli scacchi online</title>
+	<title>Chess — Gioca agli scacchi online</title>
 </svelte:head>
 
 <div class="home">
@@ -12,7 +12,7 @@
 	<!-- ── Hero ─────────────────────────────────────────────────── -->
 	<div class="hero">
 
-		<img src={logo} alt="Chess Clone" class="logo" draggable="false" />
+		<img src={logo} alt="Chess" class="logo" draggable="false" />
 
 		{#if $authLoading}
 			<p class="muted">Caricamento...</p>

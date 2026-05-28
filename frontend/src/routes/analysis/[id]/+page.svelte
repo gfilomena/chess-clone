@@ -120,7 +120,7 @@
 </script>
 
 <svelte:head>
-	<title>Analisi — Chess Clone</title>
+	<title>Analisi — Chess</title>
 </svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />

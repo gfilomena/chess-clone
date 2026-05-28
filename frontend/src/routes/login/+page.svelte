@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>Accedi — Chess Clone</title>
+	<title>Accedi — Chess</title>
 </svelte:head>
 
 {#if $authLoading}

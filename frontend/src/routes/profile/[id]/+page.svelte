@@ -67,7 +67,7 @@
 </script>
 
 <svelte:head>
-	<title>{profile?.username ?? 'Profilo'} — Chess Clone</title>
+	<title>{profile?.username ?? 'Profilo'} — Chess</title>
 </svelte:head>
 
 {#if loading}

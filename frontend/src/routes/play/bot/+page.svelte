@@ -305,7 +305,7 @@
 </script>
 
 <svelte:head>
-	<title>Gioca vs Bot — Chess Clone</title>
+	<title>Gioca vs Bot — Chess</title>
 </svelte:head>
 
 <!-- ══════════════════════════════════════════════════════════════════════════

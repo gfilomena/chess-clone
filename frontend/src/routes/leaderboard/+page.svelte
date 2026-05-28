@@ -40,7 +40,7 @@
 </script>
 
 <svelte:head>
-	<title>Classifica — Chess Clone</title>
+	<title>Classifica — Chess</title>
 </svelte:head>
 
 <div class="page">

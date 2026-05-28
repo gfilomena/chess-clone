@@ -232,7 +232,7 @@
 </script>
 
 <svelte:head>
-	<title>Trova partita — Chess Clone</title>
+	<title>Trova partita — Chess</title>
 </svelte:head>
 
 <div class="play-page">

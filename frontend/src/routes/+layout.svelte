@@ -48,7 +48,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Chess Clone</title>
+	<title>Chess</title>
 </svelte:head>
 
 <!-- ── Mobile top bar (solo < 768px) ───────────────────────── -->
@@ -61,7 +61,7 @@
 		{sidebarOpen ? '✕' : '☰'}
 	</button>
 	<img src={favicon} alt="" class="mobile-logo-icon" aria-hidden="true" />
-	<span class="mobile-logo-text">Chess Clone</span>
+	<span class="mobile-logo-text">Chess</span>
 	{#if $user}
 		<div class="user-chip-wrap">
 			<button
@@ -100,7 +100,7 @@
 
 		<a href="/" class="sidebar-logo" onclick={() => sidebarOpen = false}>
 			<img src={favicon} alt="" class="sidebar-logo-img" aria-hidden="true" />
-			<span class="sidebar-logo-text">Chess Clone</span>
+			<span class="sidebar-logo-text">Chess</span>
 		</a>
 
 		<nav class="sidebar-nav">

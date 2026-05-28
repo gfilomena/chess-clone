@@ -43,7 +43,7 @@
 </script>
 
 <svelte:head>
-	<title>Registrati — Chess Clone</title>
+	<title>Registrati — Chess</title>
 </svelte:head>
 
 {#if $authLoading}
