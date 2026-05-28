@@ -1,0 +1,23 @@
+# ── OS ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Environment / secrets ─────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Backend (Go) ──────────────────────────────────────────────────
+backend/chess-clone
+backend/*.exe
+backend/tmp/
+/bin/
+
+# ── Frontend (SvelteKit / Vite) ───────────────────────────────────
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/.output/
+frontend/.vercel/
+frontend/vite.config.ts.timestamp-*
+frontend/vite.config.js.timestamp-*
