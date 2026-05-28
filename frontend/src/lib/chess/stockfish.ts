@@ -237,12 +237,12 @@ export function classifyMove(
 
 	const isBest = playedUci.slice(0, 4) === bestUci.slice(0, 4) && bestUci.slice(0, 4) !== '';
 
-	if (isBest || delta < 5)   return { key: 'best',        label: 'Ottima',       symbol: '!!', color: '#5B8E55', delta };
-	if (delta < 25)            return { key: 'excellent',   label: 'Eccellente',   symbol: '!',  color: '#81B64C', delta };
-	if (delta < 60)            return { key: 'good',        label: 'Buona',        symbol: '',   color: '#5080C0', delta };
-	if (delta < 120)           return { key: 'inaccuracy',  label: 'Imprecisione', symbol: '?!', color: '#C9A020', delta };
-	if (delta < 300)           return { key: 'mistake',     label: 'Errore',       symbol: '?',  color: '#D97706', delta };
-	return                            { key: 'blunder',     label: 'Gaffe',        symbol: '??', color: '#DC2626', delta };
+	if (isBest || delta < 5)   return { key: 'best',        label: 'Geniale',       symbol: '!!', color: '#5B8E55', delta };
+	if (delta < 25)            return { key: 'excellent',   label: 'Grande',        symbol: '!',  color: '#81B64C', delta };
+	if (delta < 60)            return { key: 'good',        label: 'Migliore',      symbol: '',   color: '#5080C0', delta };
+	if (delta < 120)           return { key: 'inaccuracy',  label: 'Errore',        symbol: '?!', color: '#C9A020', delta };
+	if (delta < 300)           return { key: 'mistake',     label: 'Mossa mancata', symbol: '?',  color: '#D97706', delta };
+	return                            { key: 'blunder',     label: 'Errore grave',  symbol: '??', color: '#DC2626', delta };
 }
 
 /**

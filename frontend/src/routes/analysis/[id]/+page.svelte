@@ -219,13 +219,18 @@
 	/** Percentuale barra progresso */
 	const progressPct = $derived(reviewTotal > 0 ? Math.round((reviewProgress / reviewTotal) * 100) : 0);
 
-	/** Summary classificazioni (per tabellino) */
+	/** Summary classificazioni con split bianco/nero */
 	const reviewSummary = $derived(
 		reviewDone
-			? moveClassifications.reduce((acc, c) => {
-				if (c) acc[c.key] = (acc[c.key] ?? 0) + 1;
+			? moveClassifications.reduce((acc, c, i) => {
+				if (c) {
+					const isWhite = positions[i].split(' ')[1] === 'w';
+					if (!acc[c.key]) acc[c.key] = { white: 0, black: 0 };
+					if (isWhite) acc[c.key].white++;
+					else         acc[c.key].black++;
+				}
 				return acc;
-			}, {} as Record<string, number>)
+			}, {} as Record<string, { white: number; black: number }>)
 			: {}
 	);
 </script>
@@ -345,19 +350,27 @@
 		<!-- Tabellino revisione -->
 		{#if reviewDone && Object.keys(reviewSummary).length > 0}
 			<div class="review-summary">
+				<div class="summary-header">
+					<span class="summary-sym"></span>
+					<span class="summary-lbl"></span>
+					<span class="summary-player-head">♔</span>
+					<span class="summary-player-head">♟</span>
+				</div>
 				{#each [
-					{ key:'blunder',    label:'Gaffe',        symbol:'??', color:'#DC2626' },
-					{ key:'mistake',    label:'Errore',       symbol:'?',  color:'#D97706' },
-					{ key:'inaccuracy', label:'Imprecisione', symbol:'?!', color:'#C9A020' },
-					{ key:'good',       label:'Buona',        symbol:'·',  color:'#5080C0' },
-					{ key:'excellent',  label:'Eccellente',   symbol:'!',  color:'#81B64C' },
-					{ key:'best',       label:'Ottima',       symbol:'!!', color:'#5B8E55' },
+					{ key:'best',       label:'Geniale',       symbol:'!!', color:'#5B8E55' },
+					{ key:'excellent',  label:'Grande',        symbol:'!',  color:'#81B64C' },
+					{ key:'good',       label:'Migliore',      symbol:'',   color:'#5080C0' },
+					{ key:'inaccuracy', label:'Errore',        symbol:'?!', color:'#C9A020' },
+					{ key:'mistake',    label:'Mossa mancata', symbol:'?',  color:'#D97706' },
+					{ key:'blunder',    label:'Errore grave',  symbol:'??', color:'#DC2626' },
 				] as row}
-					{#if (reviewSummary[row.key] ?? 0) > 0}
+					{@const counts = reviewSummary[row.key]}
+					{#if counts && (counts.white + counts.black) > 0}
 						<div class="summary-row">
-							<span class="summary-sym" style="color:{row.color}">{row.symbol}</span>
+							<span class="summary-sym" style="color:{row.color}">{row.symbol || '·'}</span>
 							<span class="summary-lbl">{row.label}</span>
-							<span class="summary-cnt">{reviewSummary[row.key]}</span>
+							<span class="summary-cnt">{counts.white}</span>
+							<span class="summary-cnt">{counts.black}</span>
 						</div>
 					{/if}
 				{/each}
@@ -600,15 +613,27 @@
 		flex-direction: column;
 		gap: 0.25rem;
 	}
+	.summary-header,
 	.summary-row {
-		display: flex;
+		display: grid;
+		grid-template-columns: 1.6rem 1fr 1.8rem 1.8rem;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		font-size: 0.8rem;
 	}
-	.summary-sym { font-weight: 800; min-width: 1.6rem; }
-	.summary-lbl { flex: 1; color: var(--text-muted); }
-	.summary-cnt { font-weight: 700; }
+	.summary-header {
+		border-bottom: 1px solid var(--border);
+		padding-bottom: 0.25rem;
+		margin-bottom: 0.1rem;
+	}
+	.summary-player-head {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-align: center;
+	}
+	.summary-sym { font-weight: 800; }
+	.summary-lbl { color: var(--text-muted); }
+	.summary-cnt { font-weight: 700; text-align: center; }
 
 	/* ── Progress bar ── */
 	.review-section {
