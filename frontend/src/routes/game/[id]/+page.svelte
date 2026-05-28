@@ -7,7 +7,7 @@
 	import { gameState, resetGame } from '$lib/stores/game';
 	import { connectToGame, sendMove, sendResign, sendOfferDraw, sendDrawResponse, disconnect } from '$lib/ws/socket';
 	import { user } from '$lib/stores/auth';
-	import { initSounds, toggleMute, cycleTheme, soundTheme, themeLabel } from '$lib/chess/sounds';
+	import { initSounds, playSound, toggleMute, cycleTheme, soundTheme, themeLabel, type SoundName } from '$lib/chess/sounds';
 
 	const gameId = $page.params.id!;
 
@@ -19,10 +19,11 @@
 	interface HistoryEntry {
 		fen: string;
 		move: { from: string; to: string } | null;
+		sound: SoundName | null;
 	}
 
 	function buildHistory(pgn: string): HistoryEntry[] {
-		const entries: HistoryEntry[] = [{ fen: new Chess().fen(), move: null }];
+		const entries: HistoryEntry[] = [{ fen: new Chess().fen(), move: null, sound: null }];
 		if (!pgn) return entries;
 		try {
 			const temp = new Chess();
@@ -31,7 +32,10 @@
 			const replay = new Chess();
 			for (const mv of moves) {
 				replay.move(mv.san);
-				entries.push({ fen: replay.fen(), move: { from: mv.from, to: mv.to } });
+				const inCheck  = replay.inCheck();
+				const isCapture = mv.flags.includes('c') || mv.flags.includes('e');
+				const sound: SoundName = inCheck ? 'check' : isCapture ? 'capture' : 'move';
+				entries.push({ fen: replay.fen(), move: { from: mv.from, to: mv.to }, sound });
 			}
 		} catch {}
 		return entries;
@@ -55,17 +59,29 @@
 			: `${viewIndex} / ${history.length - 1}`
 	);
 
-	function navFirst() { viewIndex = 0; }
-	function navPrev()  {
+	function playNavSound(idx: number) {
+		const s = history[idx]?.sound;
+		if (s) playSound(s);
+	}
+
+	function navFirst() {
+		viewIndex = 0;
+		// posizione iniziale: nessun suono
+	}
+	function navPrev() {
 		const idx = viewIndex ?? history.length - 1;
-		if (idx > 0) viewIndex = idx - 1;
+		if (idx > 0) { viewIndex = idx - 1; playNavSound(idx - 1); }
 	}
-	function navNext()  {
+	function navNext() {
 		if (viewIndex === null) return;
-		if (viewIndex < history.length - 1) viewIndex++;
-		else viewIndex = null;
+		if (viewIndex < history.length - 1) {
+			viewIndex++;
+			playNavSound(viewIndex);
+		} else {
+			viewIndex = null; // torna a live
+		}
 	}
-	function navLast()  { viewIndex = null; }
+	function navLast() { viewIndex = null; }
 
 	// ───────────────────────────────────────────────────────────────
 

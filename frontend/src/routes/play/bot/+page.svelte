@@ -44,15 +44,21 @@
 	interface HistoryEntry {
 		fen: string;
 		move: { from: string; to: string } | null;
+		sound: import('$lib/chess/sounds').SoundName | null;
 	}
 
 	function buildBotHistory(moves: string[]): HistoryEntry[] {
-		const entries: HistoryEntry[] = [{ fen: new Chess().fen(), move: null }];
+		const entries: HistoryEntry[] = [{ fen: new Chess().fen(), move: null, sound: null }];
 		const replay = new Chess();
 		for (const san of moves) {
 			try {
 				const mv = replay.move(san) as any;
-				if (mv) entries.push({ fen: replay.fen(), move: { from: mv.from, to: mv.to } });
+				if (mv) {
+					const inCheck   = replay.inCheck();
+					const isCapture = mv.flags.includes('c') || mv.flags.includes('e');
+					const sound = inCheck ? 'check' : isCapture ? 'capture' : 'move';
+					entries.push({ fen: replay.fen(), move: { from: mv.from, to: mv.to }, sound });
+				}
 			} catch {}
 		}
 		return entries;
@@ -75,17 +81,26 @@
 		viewIndex === null ? 'Live' : `${viewIndex} / ${botHistory.length - 1}`
 	);
 
+	function playNavSound(idx: number) {
+		const s = botHistory[idx]?.sound;
+		if (s) playSound(s);
+	}
+
 	function navFirst() { viewIndex = 0; }
-	function navPrev()  {
+	function navPrev() {
 		const idx = viewIndex ?? botHistory.length - 1;
-		if (idx > 0) viewIndex = idx - 1;
+		if (idx > 0) { viewIndex = idx - 1; playNavSound(idx - 1); }
 	}
-	function navNext()  {
+	function navNext() {
 		if (viewIndex === null) return;
-		if (viewIndex < botHistory.length - 1) viewIndex++;
-		else viewIndex = null;
+		if (viewIndex < botHistory.length - 1) {
+			viewIndex++;
+			playNavSound(viewIndex);
+		} else {
+			viewIndex = null;
+		}
 	}
-	function navLast()  { viewIndex = null; }
+	function navLast() { viewIndex = null; }
 	// ──────────────────────────────────────────────────────────────────────────
 
 	// ── Engine ────────────────────────────────────────────────────────────────
