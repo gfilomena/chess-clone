@@ -74,6 +74,15 @@ func (q *queue) setMatch(userID1, userID2, gameID string) {
 	delete(q.entries, userID2)
 }
 
+// clear svuota tutta la coda e restituisce il numero di entry rimosse (admin).
+func (q *queue) clear() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	n := len(q.entries)
+	q.entries = make(map[string]QueueEntry)
+	return n
+}
+
 // getMatch legge e cancella atomicamente il match (usato dall'SSE del client)
 func (q *queue) getMatch(userID string) (string, bool) {
 	q.mu.Lock()

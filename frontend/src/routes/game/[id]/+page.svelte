@@ -599,7 +599,10 @@
 	@media (max-width: 768px) {
 		.game-layout {
 			flex-direction: column;
-			padding: 0.5rem 0.5rem 1rem;
+			/* 100dvh − 52px: sottrae l'header mobile fisso (52px definito in app.css)
+			   così il layout occupa esattamente lo spazio disponibile senza scroll */
+			height: calc(100dvh - 52px);
+			padding: 0.5rem 0.5rem 0.5rem;
 			gap: 0.4rem;
 			align-items: center;
 			min-height: 0;
@@ -613,7 +616,7 @@
 
 		/* Le righe player si allineano alla larghezza della board */
 		.player-row {
-			width: min(calc(100vw - 1rem), calc(100dvh - 185px));
+			width: min(calc(100vw - 1rem), calc(100dvh - 238px));
 		}
 
 		/* Pulsante toggle pannello — visibile su mobile */
@@ -622,7 +625,7 @@
 			align-items: center;
 			justify-content: center;
 			gap: 0.4rem;
-			width: min(calc(100vw - 1rem), calc(100dvh - 185px));
+			width: min(calc(100vw - 1rem), calc(100dvh - 238px));
 			padding: 0.55rem 1rem;
 			background: var(--bg-card);
 			border: 1px solid var(--border);
@@ -735,7 +738,7 @@
 			border: 1px solid var(--border);
 			border-radius: 8px;
 			scrollbar-width: none;
-			width: min(calc(100vw - 1rem), calc(100dvh - 185px));
+			width: min(calc(100vw - 1rem), calc(100dvh - 238px));
 			-webkit-overflow-scrolling: touch;
 			flex-shrink: 0;
 		}
@@ -775,7 +778,7 @@
 			display: flex;
 			align-items: center;
 			gap: 0.3rem;
-			width: min(calc(100vw - 1rem), calc(100dvh - 185px));
+			width: min(calc(100vw - 1rem), calc(100dvh - 238px));
 			background: var(--bg-card);
 			border: 1px solid var(--border);
 			border-radius: 8px;
@@ -790,15 +793,21 @@
 		.nav-timeline {
 			flex: 1;
 			display: flex;
-			flex-direction: column;
-			gap: 0.3rem;
+			align-items: center;   /* track allineato verticalmente con i bottoni */
 			min-width: 0;
 		}
+		/* Track cresce per riempire nav-timeline */
 		.timeline-track {
+			flex: 1;
 			position: relative;
 			height: 5px;
 			background: var(--border);
 			border-radius: 3px;
+			overflow: visible;     /* il thumb non viene ritagliato */
+		}
+		/* Il label è ridondante: la strip dei chip mostra già la posizione */
+		.timeline-label {
+			display: none;
 		}
 		.timeline-fill {
 			position: relative;
@@ -820,15 +829,6 @@
 			border: 2px solid var(--bg-card);
 			box-shadow: 0 0 0 1px var(--accent);
 		}
-		.timeline-label {
-			text-align: center;
-			font-size: 0.62rem;
-			font-weight: 600;
-			color: var(--text-muted);
-			letter-spacing: 0.03em;
-		}
-		.timeline-label.live { color: #e05050; }
-
 		/* Nascondi nav-row nel side-col su mobile (già nella mobile-nav-bar) */
 		.side-col .nav-row { display: none; }
 	}

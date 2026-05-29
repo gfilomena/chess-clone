@@ -25,9 +25,15 @@ func NewMatchmaker(pg *db.Postgres) *Matchmaker {
 func (m *Matchmaker) Join(userID string, elo, timeControl, increment int, gameType string) {
 	m.queue.join(userID, elo, timeControl, increment, gameType)
 }
-func (m *Matchmaker) Leave(userID string)                { m.queue.leave(userID) }
-func (m *Matchmaker) IsInQueue(userID string) bool       { return m.queue.isInQueue(userID) }
+func (m *Matchmaker) Leave(userID string)                   { m.queue.leave(userID) }
+func (m *Matchmaker) IsInQueue(userID string) bool          { return m.queue.isInQueue(userID) }
 func (m *Matchmaker) GetMatch(userID string) (string, bool) { return m.queue.getMatch(userID) }
+
+// QueueEntries restituisce una copia snapshot delle entries in coda (per admin).
+func (m *Matchmaker) QueueEntries() []QueueEntry { return m.queue.getAll() }
+
+// ClearQueue svuota la coda e restituisce il numero di entry rimosse (per admin).
+func (m *Matchmaker) ClearQueue() int { return m.queue.clear() }
 
 // ── Loop principale ────────────────────────────────────────────────────────
 

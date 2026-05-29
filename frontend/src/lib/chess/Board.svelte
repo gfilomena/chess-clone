@@ -387,9 +387,10 @@
 
 	@media (max-width: 768px) {
 		.board-wrap {
-			/* Mobile: header(52) + 2×player-row(~32px) + moves-strip(~30px)
-			   + nav-bar(~34px) + panel-toggle(~36px) + gaps/padding(~30px) ≈ 185px */
-			width: min(calc(100vw - 1rem), calc(100dvh - 185px));
+			/* game-layout sottrae già i 52px dell'header; qui togliamo solo
+			   l'overhead interno: 2×player-row(~36px) + moves-strip(~30px)
+			   + nav-bar(~36px) + panel-toggle(~34px) + gaps+padding(~50px) ≈ 186px */
+			width: min(calc(100vw - 1rem), calc(100dvh - 52px - 186px));
 		}
 	}
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { login, devLogin, user, authLoading } from '$lib/stores/auth';
+	import { login, devLogin, user, authLoading, resendVerification } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
 	import { API_URL, DEV_MODE } from '$lib/config';
 	import { t } from '$lib/i18n';
@@ -10,27 +10,55 @@
 	});
 
 	// ── Normal login state ────────────────────────────────────────────────────────
-	let email = $state('');
+	let email    = $state('');
 	let password = $state('');
 
 	// ── Dev login state ───────────────────────────────────────────────────────────
 	let devUsername = $state('');
 
 	// ── Shared ───────────────────────────────────────────────────────────────────
-	let error = $state('');
+	let error   = $state('');
 	let loading = $state(false);
+
+	// ── Email not verified state ──────────────────────────────────────────────────
+	let notVerified     = $state(false);
+	let resendLoading   = $state(false);
+	let resendDone      = $state(false);
 
 	async function handleLogin(e: Event) {
 		e.preventDefault();
 		error = '';
+		notVerified = false;
 		loading = true;
 		try {
 			await login(email, password);
 			goto('/');
 		} catch (err: any) {
-			error = err.message ?? $t.auth.err_login;
+			const code: string = err.message ?? '';
+			if (code === 'EMAIL_NOT_VERIFIED') {
+				notVerified = true;
+			} else if (code === 'INVALID_CREDENTIALS') {
+				error = $t.auth.err_login;
+			} else if (code === 'BANNED') {
+				error = 'Account sospeso.';
+			} else {
+				error = $t.auth.err_login;
+			}
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function handleResend() {
+		resendLoading = true;
+		resendDone = false;
+		try {
+			await resendVerification(email);
+			resendDone = true;
+		} catch {
+			resendDone = true;
+		} finally {
+			resendLoading = false;
 		}
 	}
 
@@ -64,6 +92,24 @@
 
 		{#if error}
 			<div class="error-msg">{error}</div>
+		{/if}
+
+		<!-- Email non verificata ─────────────────────────────────────────── -->
+		{#if notVerified}
+			<div class="not-verified-banner">
+				<p class="nv-msg">{$t.auth.err_not_verified}</p>
+				{#if resendDone}
+					<span class="resent-ok">{$t.auth.verify_resent}</span>
+				{:else}
+					<button
+						class="btn-resend"
+						onclick={handleResend}
+						disabled={resendLoading}
+					>
+						{resendLoading ? $t.auth.verify_resending : $t.auth.verify_resend}
+					</button>
+				{/if}
+			</div>
 		{/if}
 
 		{#if DEV_MODE}
@@ -183,5 +229,51 @@
 		padding: 0.15rem 0.4rem;
 		border-radius: 4px;
 		letter-spacing: 0.05em;
+	}
+
+	/* ── Email not verified ── */
+	.not-verified-banner {
+		background: rgba(255, 152, 0, 0.1);
+		border: 1px solid rgba(255, 152, 0, 0.4);
+		border-radius: 10px;
+		padding: 0.9rem 1rem;
+		margin-bottom: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+
+	.nv-msg {
+		margin: 0;
+		font-size: 0.88rem;
+		color: #ff9800;
+		line-height: 1.4;
+	}
+
+	.btn-resend {
+		align-self: flex-start;
+		background: transparent;
+		border: 1px solid rgba(255, 152, 0, 0.5);
+		color: #ff9800;
+		padding: 0.4rem 0.9rem;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 0.82rem;
+		transition: background 0.15s;
+	}
+
+	.btn-resend:hover:not(:disabled) {
+		background: rgba(255, 152, 0, 0.15);
+	}
+
+	.btn-resend:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	.resent-ok {
+		font-size: 0.85rem;
+		color: var(--accent);
+		font-weight: 600;
 	}
 </style>

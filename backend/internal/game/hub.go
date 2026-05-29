@@ -49,6 +49,17 @@ func (h *Hub) Count() int {
 
 // ForceEnd termina forzatamente una room (abbandono server-side).
 // Thread-safe: usa un canale bufferizzato → non blocca mai.
+// ActiveGameIDs restituisce la lista degli ID delle room WS attive.
+func (h *Hub) ActiveGameIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	ids := make([]string, 0, len(h.rooms))
+	for id := range h.rooms {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (h *Hub) ForceEnd(gameID, result, reason string) {
 	h.mu.RLock()
 	room, ok := h.rooms[gameID]

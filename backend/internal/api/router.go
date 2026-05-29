@@ -18,6 +18,12 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	mux := http.NewServeMux()
 	hub := game.NewHub(pg)
 
+	// AdminConfig — caricata da ADMIN_EMAILS una volta sola
+	adminCfg := NewAdminConfig()
+	if adminCfg.Empty() {
+		log.Println("⚠️  ADMIN_EMAILS non configurato — pannello admin disabilitato")
+	}
+
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -25,11 +31,17 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	})
 
 	// Auth
-	authHandler := NewAuthHandler(pg)
+	mailer := NewMailer()
+	if mailer.devMode {
+		log.Println("📧  SMTP non configurato — email di verifica stampate a stdout (dev mode)")
+	}
+	authHandler := NewAuthHandler(pg, adminCfg, mailer)
 	mux.HandleFunc("POST /api/auth/register", authHandler.Register)
 	mux.HandleFunc("POST /api/auth/login", authHandler.Login)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.HandleFunc("GET /api/auth/me", authHandler.Me)
+	mux.HandleFunc("POST /api/auth/verify-email", authHandler.VerifyEmail)
+	mux.HandleFunc("POST /api/auth/resend-verification", authHandler.ResendVerification)
 
 	if os.Getenv("DEV_MODE") == "true" {
 		mux.HandleFunc("POST /api/auth/dev-login", authHandler.DevLogin)
@@ -78,6 +90,17 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	mux.HandleFunc("DELETE /api/invitations/{fromID}", invHandler.DeclineInvite)
 	mux.HandleFunc("POST /api/invitations/{fromID}/accept", invHandler.AcceptInvite)
 	mux.HandleFunc("GET /api/invitations/stream", invHandler.Stream)
+
+	// Admin
+	adminHandler := NewAdminHandler(pg, hub, mm, adminCfg)
+	ra := adminHandler.RequireAdmin
+	mux.HandleFunc("GET /api/admin/stats",         ra(adminHandler.Stats))
+	mux.HandleFunc("GET /api/admin/users",         ra(adminHandler.Users))
+	mux.HandleFunc("PATCH /api/admin/users/{id}",  ra(adminHandler.PatchUser))
+	mux.HandleFunc("GET /api/admin/games",         ra(adminHandler.Games))
+	mux.HandleFunc("GET /api/admin/hub",           ra(adminHandler.Hub))
+	mux.HandleFunc("GET /api/admin/queue",         ra(adminHandler.Queue))
+	mux.HandleFunc("DELETE /api/admin/queue",      ra(adminHandler.ClearQueue))
 
 	// Frontend SPA — catch-all finale
 	mux.Handle("/", newSPAHandler(staticFS))
