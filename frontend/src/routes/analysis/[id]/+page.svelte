@@ -409,20 +409,24 @@
 		<!-- Barra azioni unificata -->
 		<div class="action-bar">
 			{#if reviewRunning}
-				<div class="review-progress" style="flex:1">
+				<div class="review-progress">
 					<div class="progress-bar">
 						<div class="progress-fill" style="width:{progressPct}%"></div>
 					</div>
 					<span class="progress-label">{$t.analysis.progress(reviewProgress, reviewTotal)}</span>
 				</div>
-			{:else if reviewDone}
-				<button class="action-pill accent" onclick={exitReview}>← Live</button>
-				<a href={`${API}/api/games/${gameId}/pgn`} class="action-pill">⬇ PGN</a>
-				<a href="/" class="action-pill">Nuova ↗</a>
 			{:else}
-				<button class="action-pill accent full" onclick={startReview}>{$t.analysis.start_review}</button>
-				<a href={`${API}/api/games/${gameId}/pgn`} class="action-pill">⬇ PGN</a>
-				<a href="/" class="action-pill">Nuova ↗</a>
+				<!-- Primario: Nuova partita -->
+				<a href="/" class="action-primary">Nuova partita</a>
+				<!-- Secondari: Live/Analizza + PGN -->
+				<div class="action-row">
+					{#if reviewDone}
+						<button class="action-ghost" onclick={exitReview}>← Analisi live</button>
+					{:else}
+						<button class="action-ghost action-ghost--accent" onclick={startReview}>{$t.analysis.start_review}</button>
+					{/if}
+					<a href={`${API}/api/games/${gameId}/pgn`} class="action-ghost">⬇ PGN</a>
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -705,46 +709,68 @@
 		text-align: center;
 	}
 
-	/* ── Action bar — ghost pills in riga ── */
+	/* ── Action bar ── */
 	.action-bar {
 		display: flex;
-		gap: 0.3rem;
+		flex-direction: column;
+		gap: 0.35rem;
 		flex-shrink: 0;
-		align-items: center;
 	}
-	.action-pill {
-		flex: 1;
-		font-size: 0.72rem;
-		font-weight: 500;
-		padding: 0.32rem 0.25rem;
-		text-align: center;
-		background: none;
-		border: 1px solid var(--border);
-		border-radius: 20px;
-		color: var(--text-muted);
-		text-decoration: none;
-		cursor: pointer;
-		white-space: nowrap;
-		transition: border-color 0.12s, color 0.12s;
-		line-height: 1.3;
+	/* Primario: Nuova partita */
+	.action-primary {
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		width: 100%;
+		padding: 0.52rem 1rem;
+		background: var(--accent);
+		color: #000;
+		border: none;
+		border-radius: 8px;
+		font-size: 0.8rem;
+		font-weight: 700;
+		text-decoration: none;
+		cursor: pointer;
+		letter-spacing: 0.01em;
+		transition: opacity 0.15s;
 	}
-	.action-pill:hover {
-		border-color: var(--accent);
+	.action-primary:hover { opacity: 0.85; text-decoration: none; color: #000; }
+	/* Riga secondaria */
+	.action-row {
+		display: flex;
+		gap: 0.35rem;
+	}
+	/* Ghost: azioni secondarie */
+	.action-ghost {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.38rem 0.25rem;
+		background: none;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 500;
+		text-decoration: none;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: border-color 0.15s, color 0.15s;
+		line-height: 1.3;
+	}
+	.action-ghost:hover {
+		border-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
 		color: var(--text);
 		text-decoration: none;
 	}
-	.action-pill.accent {
+	.action-ghost--accent {
 		border-color: var(--accent);
 		color: var(--accent);
 	}
-	.action-pill.accent:hover {
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
-	}
-	.action-pill.full {
-		flex: 2;
+	.action-ghost--accent:hover {
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		color: var(--accent);
 	}
 
 	/* ── Mobile ── */
@@ -773,6 +799,7 @@
 			max-height: 200px;
 			overflow-y: auto;
 		}
-		.action-pill { font-size: 0.68rem; padding: 0.28rem 0.2rem; }
+		.action-ghost { font-size: 0.7rem; }
+		.action-primary { font-size: 0.78rem; }
 	}
 </style>
