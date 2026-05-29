@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -109,6 +110,7 @@ func (h *InvitationHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 	if body.Increment < 0 {
 		body.Increment = 0
 	}
+	log.Printf("[SendInvite] from=%s to=%s TC=%d inc=%d", fromID, body.ToUserID, body.TimeControl, body.Increment)
 
 	var fromUsername string
 	var fromElo int
@@ -196,6 +198,7 @@ func (h *InvitationHandler) AcceptInvite(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *InvitationHandler) createFriendGame(ctx context.Context, fromID, toID string, timeControl, increment int) (string, error) {
+	log.Printf("[createFriendGame] from=%s to=%s TC=%d inc=%d", fromID, toID, timeControl, increment)
 	whiteID, blackID := determineFriendColors(ctx, h.pg, fromID, toID)
 	var gameID string
 	err := h.pg.Pool.QueryRow(ctx,
