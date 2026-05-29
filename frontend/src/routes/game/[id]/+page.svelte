@@ -5,7 +5,7 @@
 	import Board from '$lib/chess/Board.svelte';
 	import Timer from '$lib/chess/Timer.svelte';
 	import { gameState, resetGame } from '$lib/stores/game';
-	import { connectToGame, sendMove, sendResign, sendOfferDraw, sendDrawResponse, disconnect } from '$lib/ws/socket';
+	import { connectToGame, sendMove, sendResign, sendOfferDraw, sendDrawResponse, sendFlag, disconnect } from '$lib/ws/socket';
 	import { user } from '$lib/stores/auth';
 	import { initSounds, playSound, type SoundName } from '$lib/chess/sounds';
 	import { computeCaptured } from '$lib/chess/captured';
@@ -280,6 +280,7 @@
 			<Timer
 				ms={$gameState.playerColor === 'white' ? $gameState.whiteMs : $gameState.blackMs}
 				isActive={$gameState.playerColor === 'white' ? isWhiteActive : isBlackActive}
+				onFlag={sendFlag}
 			/>
 		</div>
 

@@ -1,12 +1,18 @@
 <script lang="ts">
-	let { ms, isActive }: { ms: number; isActive: boolean } = $props();
+	let {
+		ms,
+		isActive,
+		onFlag
+	}: { ms: number; isActive: boolean; onFlag?: () => void } = $props();
 
 	let displayMs = $state(0);
 	let intervalId: ReturnType<typeof setInterval> | null = null;
+	let flagSent = $state(false);
 
-	// Sincronizza con il valore dal server ad ogni mossa
+	// Sincronizza con il valore dal server ad ogni mossa; resetta il flag
 	$effect(() => {
 		displayMs = ms;
+		flagSent = false;
 	});
 
 	// Countdown locale tra una mossa e l'altra
@@ -15,6 +21,10 @@
 		if (isActive) {
 			intervalId = setInterval(() => {
 				displayMs = Math.max(0, displayMs - 100);
+				if (displayMs === 0 && !flagSent) {
+					flagSent = true;
+					onFlag?.();
+				}
 			}, 100);
 		}
 		return () => {

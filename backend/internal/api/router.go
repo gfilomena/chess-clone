@@ -46,14 +46,15 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	mux.HandleFunc("GET /ws/game/{gameID}", wsHandler.HandleGameWS)
 
 	// Matchmaking
-	mmHandler := NewMatchmakingHandler(pg, mm)
+	mmHandler := NewMatchmakingHandler(pg, mm, hub)
 	mux.HandleFunc("POST /api/matchmaking/join", mmHandler.Join)
 	mux.HandleFunc("DELETE /api/matchmaking/leave", mmHandler.Leave)
 	mux.HandleFunc("GET /api/matchmaking/status", mmHandler.Status)
 	mux.HandleFunc("GET /api/matchmaking/stream", mmHandler.Stream)
 
 	// Partite
-	gamesHandler := NewGamesHandler(pg)
+	gamesHandler := NewGamesHandler(pg, hub)
+	mux.HandleFunc("GET /api/games/active", gamesHandler.GetActiveGame)
 	mux.HandleFunc("GET /api/games/{id}", gamesHandler.GetGame)
 	mux.HandleFunc("GET /api/games/{id}/pgn", gamesHandler.GetPGN)
 	mux.HandleFunc("GET /api/users/{id}/games", gamesHandler.GetUserGames)
@@ -72,7 +73,7 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	mux.HandleFunc("GET /api/users/online", onlineHandler.GetOnlineUsers)
 
 	// Inviti amico
-	invHandler := NewInvitationHandler(pg)
+	invHandler := NewInvitationHandler(pg, hub)
 	mux.HandleFunc("POST /api/invitations", invHandler.SendInvite)
 	mux.HandleFunc("DELETE /api/invitations/{fromID}", invHandler.DeclineInvite)
 	mux.HandleFunc("POST /api/invitations/{fromID}/accept", invHandler.AcceptInvite)

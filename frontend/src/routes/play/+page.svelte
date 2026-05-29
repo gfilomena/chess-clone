@@ -183,7 +183,7 @@
 		fi = 'pending';
 		inviteError = '';
 		try {
-			await sendInvite(targetID);
+			await sendInvite(targetID, activeTc, activeInc);
 		} catch (err: any) {
 			fi = 'error';
 			inviteError = err.message ?? get(t).play.err_invite;

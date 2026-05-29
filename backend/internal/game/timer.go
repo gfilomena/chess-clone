@@ -43,6 +43,23 @@ func (t *timerState) recordMove(moverColor string) (whiteMs, blackMs int64, time
 	return t.whiteMs, t.blackMs, false, ""
 }
 
+// checkTimeout verifica se il giocatore attivo ha esaurito il tempo.
+// Usa una grazia di 800 ms per compensare la latenza di rete tra client e server.
+func (t *timerState) checkTimeout(activeTurn string) (timedOut bool, loser string) {
+	elapsed := time.Since(t.turnStarted).Milliseconds()
+	const graceMs = 800
+	if activeTurn == "white" {
+		if t.whiteMs-elapsed <= graceMs {
+			return true, "white"
+		}
+	} else {
+		if t.blackMs-elapsed <= graceMs {
+			return true, "black"
+		}
+	}
+	return false, ""
+}
+
 // currentTimes restituisce i tempi con l'elapsed del turno in corso già sottratto.
 func (t *timerState) currentTimes(activeTurn string) (whiteMs, blackMs int64) {
 	elapsed := time.Since(t.turnStarted).Milliseconds()

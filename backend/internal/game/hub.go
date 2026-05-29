@@ -46,3 +46,18 @@ func (h *Hub) Count() int {
 	defer h.mu.RUnlock()
 	return len(h.rooms)
 }
+
+// ForceEnd termina forzatamente una room (abbandono server-side).
+// Thread-safe: usa un canale bufferizzato → non blocca mai.
+func (h *Hub) ForceEnd(gameID, result, reason string) {
+	h.mu.RLock()
+	room, ok := h.rooms[gameID]
+	h.mu.RUnlock()
+	if !ok {
+		return
+	}
+	select {
+	case room.forceEnd <- forceEndMsg{result: result, reason: reason}:
+	default: // canale già pieno — endGame già in corso
+	}
+}

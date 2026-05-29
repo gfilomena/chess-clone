@@ -20,6 +20,11 @@ type clientMessage struct {
 	msg    InboundMsg
 }
 
+type forceEndMsg struct {
+	result string
+	reason string
+}
+
 // Room gestisce una partita: stato, timer in-memory, messaggi
 type Room struct {
 	gameID string
@@ -29,6 +34,7 @@ type Room struct {
 	chess       *chess.Game
 	timeControl int // secondi
 	started     bool
+	finished    bool       // impedisce double-endgame
 	timer       timerState // in-memory, nessun Redis
 
 	pg  *db.Postgres
@@ -36,6 +42,7 @@ type Room struct {
 
 	inbound            chan clientMessage
 	clientDisconnected chan *Client
+	forceEnd           chan forceEndMsg
 
 	whiteReconnectTimer *time.Timer
 	blackReconnectTimer *time.Timer
@@ -49,6 +56,7 @@ func newRoom(gameID string, pg *db.Postgres, hub *Hub) *Room {
 		hub:                hub,
 		inbound:            make(chan clientMessage, 32),
 		clientDisconnected: make(chan *Client, 4),
+		forceEnd:           make(chan forceEndMsg, 1),
 	}
 }
 
@@ -63,6 +71,9 @@ func (r *Room) Run() {
 			r.handleMessage(cm)
 		case c := <-r.clientDisconnected:
 			r.handleDisconnect(c)
+		case fe := <-r.forceEnd:
+			r.endGame(fe.result, fe.reason)
+			return
 		}
 	}
 }
@@ -150,6 +161,8 @@ func (r *Room) handleMessage(cm clientMessage) {
 			return
 		}
 		r.handleDrawResponse(cm.client, p.Accepted)
+	case "flag":
+		r.handleFlag(cm.client)
 	}
 }
 
@@ -187,7 +200,7 @@ func (r *Room) handleMove(c *Client, p MovePayload) {
 		if loser == "black" {
 			winner = "white"
 		}
-		r.endGame(winner, "timeout")
+		r.handleTimeout(winner)
 		return
 	}
 
@@ -238,6 +251,127 @@ func (r *Room) handleDrawResponse(c *Client, accepted bool) {
 	}
 }
 
+// handleFlag viene chiamato quando il client segnala che il proprio timer è scaduto.
+// Verifica server-side con grace period prima di accettare il flag.
+func (r *Room) handleFlag(c *Client) {
+	if !r.started || r.finished {
+		return
+	}
+	if r.chess.Outcome() != chess.NoOutcome {
+		return
+	}
+
+	// Verifica server-side: accettiamo solo se il timer del giocatore è effettivamente
+	// scaduto (con la grace period di 800 ms per compensare la latenza).
+	turn := r.chess.Position().Turn()
+	var activeTurn string
+	if turn == chess.White {
+		activeTurn = "white"
+	} else {
+		activeTurn = "black"
+	}
+	if c.Color != activeTurn {
+		// Il flag arriva dal giocatore che non è di turno: ignora.
+		return
+	}
+	timedOut, loser := r.timer.checkTimeout(activeTurn)
+	if !timedOut {
+		return
+	}
+
+	winner := "black"
+	if loser == "black" {
+		winner = "white"
+	}
+	r.handleTimeout(winner)
+}
+
+// handleTimeout applica le regole chess.com:
+// se l'avversario non ha materiale sufficiente per dare scacco matto → patta,
+// altrimenti → vittoria per timeout.
+func (r *Room) handleTimeout(winner string) {
+	if r.finished {
+		return
+	}
+	pos := r.chess.Position()
+	var winnerColor chess.Color
+	if winner == "white" {
+		winnerColor = chess.White
+	} else {
+		winnerColor = chess.Black
+	}
+
+	if hasSufficientMatingMaterial(pos, winnerColor) {
+		r.endGame(winner, "timeout")
+	} else {
+		r.endGame("draw", "timeout_vs_insufficient_material")
+	}
+}
+
+// hasSufficientMatingMaterial restituisce true se winnerColor ha abbastanza materiale
+// per dare potenzialmente scacco matto, secondo le regole chess.com:
+//
+//   - Solo Re                              → no
+//   - Re + Cavallo                         → no
+//   - Re + Alfiere                         → no
+//   - Re + 2 Cavalli (loser senza pedoni)  → no  (con pedoni → sì, teoricamente)
+//   - Qualsiasi altro materiale            → sì
+func hasSufficientMatingMaterial(pos *chess.Position, winnerColor chess.Color) bool {
+	board := pos.Board()
+
+	loserColor := chess.Black
+	if winnerColor == chess.Black {
+		loserColor = chess.White
+	}
+
+	var wN, wB, wR, wQ, wP int
+	var lP int
+
+	for sqIdx := 0; sqIdx < 64; sqIdx++ {
+		p := board.Piece(chess.Square(sqIdx))
+		if p == chess.NoPiece {
+			continue
+		}
+		if p.Color() == winnerColor {
+			switch p.Type() {
+			case chess.Knight:
+				wN++
+			case chess.Bishop:
+				wB++
+			case chess.Rook:
+				wR++
+			case chess.Queen:
+				wQ++
+			case chess.Pawn:
+				wP++
+			}
+		} else if p.Color() == loserColor && p.Type() == chess.Pawn {
+			lP++
+		}
+	}
+
+	// Torre, Donna o Pedone del vincitore → sempre sufficiente
+	if wR > 0 || wQ > 0 || wP > 0 {
+		return true
+	}
+
+	minor := wN + wB
+	switch {
+	case minor == 0:
+		// Solo Re → non sufficiente
+		return false
+	case minor == 1:
+		// Re + pezzo minore (N o B) → non sufficiente
+		return false
+	case wN == 2 && wB == 0:
+		// Re + 2 Cavalli: sufficiente solo se il perdente ha ancora pedoni
+		return lP > 0
+	default:
+		// 2+ pezzi minori con almeno un Alfiere, o 3+ Cavalli → sufficiente
+		return true
+	}
+}
+
 func (r *Room) handleDisconnect(c *Client) {
 	log.Printf("client disconnesso: %s (%s)", c.UserID, c.Color)
 
@@ -283,6 +417,11 @@ func (r *Room) checkOutcome() {
 }
 
 func (r *Room) endGame(result, reason string) {
+	if r.finished {
+		return
+	}
+	r.finished = true
+
 	pgn := r.chess.String()
 	ctx := context.Background()
 

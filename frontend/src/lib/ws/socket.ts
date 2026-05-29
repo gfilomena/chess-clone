@@ -110,6 +110,10 @@ export function sendDrawResponse(accepted: boolean) {
 	send({ type: 'draw_response', payload: { accepted } });
 }
 
+export function sendFlag() {
+	send({ type: 'flag' });
+}
+
 function send(msg: object) {
 	if (socket?.readyState === WebSocket.OPEN) {
 		socket.send(JSON.stringify(msg));

@@ -14,6 +14,8 @@ export interface InvitePayload {
 	from_id: string;
 	from_username: string;
 	from_elo: number;
+	time_control: number; // secondi
+	increment: number;    // secondi per mossa
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
@@ -109,12 +111,12 @@ export async function fetchOnlineUsers(): Promise<void> {
 
 // ─── API inviti ───────────────────────────────────────────────────────────────
 
-export async function sendInvite(toUserID: string): Promise<void> {
+export async function sendInvite(toUserID: string, timeControl: number, increment: number): Promise<void> {
 	const res = await fetch(`${API}/api/invitations`, {
 		method: 'POST',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ to_user_id: toUserID })
+		body: JSON.stringify({ to_user_id: toUserID, time_control: timeControl, increment })
 	});
 	const json = await res.json();
 	if (!json.success) throw new Error(json.error?.message ?? 'Errore invio invito');

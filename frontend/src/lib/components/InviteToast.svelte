@@ -23,6 +23,15 @@
 		if (!$pendingInvite) return;
 		await declineInvite($pendingInvite.from_id);
 	}
+
+	function formatTc(tc: number, inc: number): string {
+		const m = Math.floor(tc / 60);
+		const s = tc % 60;
+		const time = s === 0 ? `${m}'` : `${m}:${String(s).padStart(2, '0')}'`;
+		const incStr = inc > 0 ? ` | ${inc}s` : '';
+		const type = tc <= 179 ? 'Bullet' : tc <= 600 ? 'Blitz' : 'Rapid';
+		return `${type} ${time}${incStr}`;
+	}
 </script>
 
 {#if $pendingInvite}
@@ -31,7 +40,10 @@
 			<span class="invite-icon">⚔️</span>
 			<div class="invite-info">
 				<span class="invite-name">{$pendingInvite.from_username}</span>
-				<span class="invite-sub">ti sfida a Rapid 10' · ELO {$pendingInvite.from_elo}</span>
+				<span class="invite-sub">
+					{formatTc($pendingInvite.time_control ?? 600, $pendingInvite.increment ?? 0)}
+					· ELO {$pendingInvite.from_elo}
+				</span>
 			</div>
 		</div>
 

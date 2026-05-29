@@ -7,16 +7,18 @@ import (
 	"time"
 
 	"chess-clone/backend/internal/db"
+	"chess-clone/backend/internal/game"
 	"chess-clone/backend/internal/matchmaking"
 )
 
 type MatchmakingHandler struct {
-	pg *db.Postgres
-	mm *matchmaking.Matchmaker
+	pg  *db.Postgres
+	mm  *matchmaking.Matchmaker
+	hub *game.Hub
 }
 
-func NewMatchmakingHandler(pg *db.Postgres, mm *matchmaking.Matchmaker) *MatchmakingHandler {
-	return &MatchmakingHandler{pg: pg, mm: mm}
+func NewMatchmakingHandler(pg *db.Postgres, mm *matchmaking.Matchmaker, hub *game.Hub) *MatchmakingHandler {
+	return &MatchmakingHandler{pg: pg, mm: mm, hub: hub}
 }
 
 // POST /api/matchmaking/join
@@ -53,6 +55,9 @@ func (h *MatchmakingHandler) Join(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "SERVER_ERROR", "Errore interno")
 		return
 	}
+
+	// Abbandona eventuale partita attiva prima di entrare in coda
+	abandonActiveGame(r.Context(), h.pg, h.hub, userID)
 
 	h.mm.Join(userID, elo, body.TimeControl, body.Increment, body.GameType)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "in_queue"})

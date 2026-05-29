@@ -1,21 +1,85 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"chess-clone/backend/internal/db"
+	"chess-clone/backend/internal/game"
 )
 
 // UUID fisso per l'utente-bot (nil UUID, non generato mai da uuid_generate_v4)
 const botUserID = "00000000-0000-0000-0000-000000000000"
 
 type GamesHandler struct {
-	pg *db.Postgres
+	pg  *db.Postgres
+	hub *game.Hub
 }
 
-func NewGamesHandler(pg *db.Postgres) *GamesHandler {
-	return &GamesHandler{pg: pg}
+func NewGamesHandler(pg *db.Postgres, hub *game.Hub) *GamesHandler {
+	return &GamesHandler{pg: pg, hub: hub}
+}
+
+// GET /api/games/active — restituisce la partita attiva (non-bot) del giocatore corrente
+func (h *GamesHandler) GetActiveGame(w http.ResponseWriter, r *http.Request) {
+	userID, err := getUserIDFromCookie(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Non autenticato")
+		return
+	}
+
+	var gameID string
+	err = h.pg.Pool.QueryRow(r.Context(), `
+		SELECT id FROM games
+		WHERE (white_id = $1 OR black_id = $1)
+		  AND status IN ('waiting', 'active')
+		  AND white_id != $2
+		  AND black_id != $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, userID, botUserID).Scan(&gameID)
+
+	if err != nil {
+		// Nessuna partita attiva
+		writeJSON(w, http.StatusOK, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"game_id": gameID})
+}
+
+// abandonActiveGame cerca e abbandona la partita attiva (non-bot) dell'utente.
+// Aggiorna il DB e notifica la room in-memory se presente.
+// È una no-op se l'utente non ha partite attive.
+func abandonActiveGame(ctx context.Context, pg *db.Postgres, hub *game.Hub, userID string) {
+	var gameID, whiteID string
+	var status string
+	err := pg.Pool.QueryRow(ctx, `
+		SELECT id, white_id, status FROM games
+		WHERE (white_id = $1 OR black_id = $1)
+		  AND status IN ('waiting', 'active')
+		  AND white_id != $2
+		  AND black_id != $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, userID, botUserID).Scan(&gameID, &whiteID, &status)
+	if err != nil {
+		return // nessuna partita attiva
+	}
+
+	// Chi abbandona perde: se white abbandona → vince black, e viceversa
+	result := "white"
+	if whiteID == userID {
+		result = "black"
+	}
+
+	pg.Pool.Exec(ctx, `
+		UPDATE games
+		SET status='finished', result=$1, finish_reason='abandoned', finished_at=NOW()
+		WHERE id=$2 AND status IN ('waiting','active')
+	`, result, gameID)
+
+	hub.ForceEnd(gameID, result, "abandoned")
 }
 
 // GET /api/games/:id

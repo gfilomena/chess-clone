@@ -1,7 +1,37 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import logo from '$lib/assets/logo.svg';
 	import { user, authLoading } from '$lib/stores/auth';
 	import { t } from '$lib/i18n';
+	import { API_URL as API } from '$lib/config';
+
+	let activeGameId = $state<string | null>(null);
+
+	onMount(async () => {
+		// Controlla se l'utente ha una partita attiva (non-bot)
+		if (!$user) return;
+		try {
+			const res = await fetch(`${API}/api/games/active`, { credentials: 'include' });
+			if (res.ok) {
+				const json = await res.json();
+				activeGameId = json.data?.game_id ?? null;
+			}
+		} catch {
+			// silenzioso
+		}
+	});
+
+	// Ricontrolla quando il login si completa
+	$effect(() => {
+		if ($user && !$authLoading) {
+			fetch(`${API}/api/games/active`, { credentials: 'include' })
+				.then(r => r.json())
+				.then(j => { activeGameId = j.data?.game_id ?? null; })
+				.catch(() => {});
+		} else if (!$user) {
+			activeGameId = null;
+		}
+	});
 </script>
 
 <svelte:head>
@@ -27,6 +57,12 @@
 			</div>
 			<div class="cta-row">
 				<a href="/play" class="btn btn-primary cta">{$t.home.play_game}</a>
+				{#if activeGameId}
+					<a href="/game/{activeGameId}" class="btn resume-btn">
+						🟢 {$t.home.resume_game}
+					</a>
+				{/if}
+				<a href="/play/bot" class="btn-outline">{$t.home.vs_bot}</a>
 			</div>
 
 		{:else}
@@ -146,6 +182,30 @@
 		padding: 0.85rem 1.5rem;
 		font-size: 1.05rem;
 	}
+	.resume-btn {
+		width: 100%;
+		padding: 0.75rem 1.5rem;
+		font-size: 0.95rem;
+		text-align: center;
+		background: color-mix(in srgb, #2ecc71 12%, transparent);
+		border: 2px solid #2ecc71;
+		color: #2ecc71;
+		border-radius: 8px;
+		text-decoration: none;
+		font-weight: 600;
+		transition: background 0.15s, color 0.15s;
+		animation: pulse-green 2s ease-in-out infinite;
+	}
+	.resume-btn:hover {
+		background: color-mix(in srgb, #2ecc71 22%, transparent);
+		color: #2ecc71;
+		text-decoration: none;
+	}
+	@keyframes pulse-green {
+		0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+		50%       { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0.15); }
+	}
+
 	.btn-outline {
 		color: var(--text-muted);
 		font-size: 0.9rem;

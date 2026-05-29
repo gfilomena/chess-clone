@@ -36,6 +36,7 @@ const translations = {
       welcome: 'Bentornato',
       play_game: '▶ Gioca una partita',
       vs_bot: '🤖 vs Bot',
+      resume_game: 'Riprendi partita',
       tagline: 'Gli scacchi online,\nsenza distrazioni.',
       sub: 'Rapid · Blitz · Bullet · Bot — tutto gratis.',
       cta_login: 'Accedi e gioca',
@@ -139,6 +140,7 @@ const translations = {
       reasons: {
         checkmate: 'scacco matto',
         timeout: 'tempo scaduto',
+        timeout_vs_insufficient_material: 'tempo scaduto — materiale insufficiente',
         resigned: 'abbandono',
         stalemate: 'stallo',
         fifty_moves: 'regola 50 mosse',
@@ -269,6 +271,7 @@ const translations = {
       welcome: 'Welcome back',
       play_game: '▶ Play a game',
       vs_bot: '🤖 vs Bot',
+      resume_game: 'Resume game',
       tagline: 'Chess online,\nno distractions.',
       sub: 'Rapid · Blitz · Bullet · Bot — all free.',
       cta_login: 'Sign in and play',
@@ -372,6 +375,7 @@ const translations = {
       reasons: {
         checkmate: 'checkmate',
         timeout: 'timeout',
+        timeout_vs_insufficient_material: 'timeout — insufficient material',
         resigned: 'resigned',
         stalemate: 'stalemate',
         fifty_moves: '50-move rule',
@@ -502,6 +506,7 @@ const translations = {
       welcome: 'Bienvenido de vuelta',
       play_game: '▶ Jugar una partida',
       vs_bot: '🤖 vs Bot',
+      resume_game: 'Reanudar partida',
       tagline: 'Ajedrez online,\nsin distracciones.',
       sub: 'Rapid · Blitz · Bullet · Bot — todo gratis.',
       cta_login: 'Inicia sesión y juega',
@@ -605,6 +610,7 @@ const translations = {
       reasons: {
         checkmate: 'jaque mate',
         timeout: 'tiempo agotado',
+        timeout_vs_insufficient_material: 'tiempo agotado — material insuficiente',
         resigned: 'abandono',
         stalemate: 'ahogado',
         fifty_moves: 'regla 50 jugadas',

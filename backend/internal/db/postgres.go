@@ -28,7 +28,7 @@ func NewPostgres(url string) (*Postgres, error) {
 
 // runBootstrapMigrations applica operazioni idempotenti necessarie all'avvio.
 // Non sostituisce un migration runner completo, ma garantisce l'esistenza
-// di dati di sistema come l'utente-bot.
+// di dati di sistema come l'utente-bot e nuovi valori di enum.
 func (p *Postgres) runBootstrapMigrations(ctx context.Context) {
 	// Utente speciale che rappresenta il bot Stockfish nelle partite.
 	// UUID fisso (nil UUID) — ON CONFLICT DO NOTHING → idempotente.
@@ -36,6 +36,12 @@ func (p *Postgres) runBootstrapMigrations(ctx context.Context) {
 		INSERT INTO users (id, username, email, elo_rapid, elo_blitz, elo_bullet)
 		VALUES ('00000000-0000-0000-0000-000000000000', '(bot)', 'bot@chess.internal', 0, 0, 0)
 		ON CONFLICT (id) DO NOTHING
+	`)
+
+	// Aggiunge il valore per patta per timeout con materiale insufficiente.
+	// IF NOT EXISTS è idempotente (PostgreSQL 9.6+).
+	p.Pool.Exec(ctx, `
+		ALTER TYPE finish_reason ADD VALUE IF NOT EXISTS 'timeout_vs_insufficient_material'
 	`)
 }
 

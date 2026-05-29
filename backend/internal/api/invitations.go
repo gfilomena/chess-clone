@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"chess-clone/backend/internal/db"
+	"chess-clone/backend/internal/game"
 )
 
 const (
@@ -21,6 +22,8 @@ type InvitePayload struct {
 	FromID       string `json:"from_id"`
 	FromUsername string `json:"from_username"`
 	FromElo      int    `json:"from_elo"`
+	TimeControl  int    `json:"time_control"` // secondi
+	Increment    int    `json:"increment"`    // secondi per mossa
 }
 
 type inviteEntry struct {
@@ -37,14 +40,16 @@ type friendMatchEntry struct {
 // InvitationHandler gestisce gli inviti tra amici in memoria
 type InvitationHandler struct {
 	pg           *db.Postgres
+	hub          *game.Hub
 	mu           sync.RWMutex
 	invites      map[string]inviteEntry      // key "toID:fromID" → entry
 	friendMatch  map[string]friendMatchEntry // fromID → match pendente
 }
 
-func NewInvitationHandler(pg *db.Postgres) *InvitationHandler {
+func NewInvitationHandler(pg *db.Postgres, hub *game.Hub) *InvitationHandler {
 	h := &InvitationHandler{
 		pg:          pg,
+		hub:         hub,
 		invites:     make(map[string]inviteEntry),
 		friendMatch: make(map[string]friendMatchEntry),
 	}
@@ -85,7 +90,9 @@ func (h *InvitationHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		ToUserID string `json:"to_user_id"`
+		ToUserID    string `json:"to_user_id"`
+		TimeControl int    `json:"time_control"`
+		Increment   int    `json:"increment"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ToUserID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_BODY", "to_user_id richiesto")
@@ -94,6 +101,13 @@ func (h *InvitationHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 	if body.ToUserID == fromID {
 		writeError(w, http.StatusBadRequest, "INVALID", "Non puoi invitarti da solo")
 		return
+	}
+	// Default: Rapid 10 min
+	if body.TimeControl <= 0 {
+		body.TimeControl = 600
+	}
+	if body.Increment < 0 {
+		body.Increment = 0
 	}
 
 	var fromUsername string
@@ -105,11 +119,20 @@ func (h *InvitationHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Abbandona eventuale partita attiva prima di inviare l'invito
+	abandonActiveGame(r.Context(), h.pg, h.hub, fromID)
+
 	key := inviteKey(body.ToUserID, fromID)
 	h.mu.Lock()
 	h.invites[key] = inviteEntry{
-		key:       key,
-		payload:   InvitePayload{FromID: fromID, FromUsername: fromUsername, FromElo: fromElo},
+		key: key,
+		payload: InvitePayload{
+			FromID:       fromID,
+			FromUsername: fromUsername,
+			FromElo:      fromElo,
+			TimeControl:  body.TimeControl,
+			Increment:    body.Increment,
+		},
 		expiresAt: time.Now().Add(inviteTTL),
 	}
 	h.mu.Unlock()
@@ -154,7 +177,11 @@ func (h *InvitationHandler) AcceptInvite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	gameID, err := h.createFriendGame(r.Context(), fromID, toID)
+	// Abbandona eventuali partite attive di entrambi i giocatori
+	abandonActiveGame(r.Context(), h.pg, h.hub, toID)
+	abandonActiveGame(r.Context(), h.pg, h.hub, fromID)
+
+	gameID, err := h.createFriendGame(r.Context(), fromID, toID, entry.payload.TimeControl, entry.payload.Increment)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "SERVER_ERROR", "Errore creazione partita")
 		return
@@ -168,13 +195,13 @@ func (h *InvitationHandler) AcceptInvite(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"game_id": gameID})
 }
 
-func (h *InvitationHandler) createFriendGame(ctx context.Context, fromID, toID string) (string, error) {
+func (h *InvitationHandler) createFriendGame(ctx context.Context, fromID, toID string, timeControl, increment int) (string, error) {
 	whiteID, blackID := determineFriendColors(ctx, h.pg, fromID, toID)
 	var gameID string
 	err := h.pg.Pool.QueryRow(ctx,
 		`INSERT INTO games (white_id, black_id, status, time_control, increment)
-		 VALUES ($1, $2, 'waiting', 600, 0) RETURNING id`,
-		whiteID, blackID,
+		 VALUES ($1, $2, 'waiting', $3, $4) RETURNING id`,
+		whiteID, blackID, timeControl, increment,
 	).Scan(&gameID)
 	return gameID, err
 }
