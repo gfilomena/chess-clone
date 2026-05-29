@@ -49,7 +49,7 @@ type Room struct {
 }
 
 func newRoom(gameID string, pg *db.Postgres, hub *Hub) *Room {
-	return &Room{
+	r := &Room{
 		gameID:             gameID,
 		chess:              chess.NewGame(),
 		pg:                 pg,
@@ -58,12 +58,17 @@ func newRoom(gameID string, pg *db.Postgres, hub *Hub) *Room {
 		clientDisconnected: make(chan *Client, 4),
 		forceEnd:           make(chan forceEndMsg, 1),
 	}
+	// Carica il time control in modo sincrono prima che Join() possa
+	// chiamare startGame(). Se invece lo si fa solo in Run() (goroutine
+	// separata) c'è una race: Join() chiama startGame() con r.timeControl=0
+	// (zero-value di Go) e il timer parte a zero.
+	r.loadTimeControl()
+	return r
 }
 
 // Run è il loop principale della room (una goroutine per partita)
 func (r *Room) Run() {
 	defer r.hub.Remove(r.gameID)
-	r.loadTimeControl()
 
 	for {
 		select {
