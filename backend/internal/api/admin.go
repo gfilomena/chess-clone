@@ -211,7 +211,7 @@ func (h *AdminHandler) PatchUser(w http.ResponseWriter, r *http.Request) {
 		h.pg.Pool.Exec(ctx, `UPDATE users SET is_banned = false WHERE id = $1`, id)
 	case "reset_elo":
 		h.pg.Pool.Exec(ctx,
-			`UPDATE users SET elo_rapid = 800, elo_blitz = 800, elo_bullet = 800 WHERE id = $1`, id)
+			`UPDATE users SET elo_rapid = 100, elo_blitz = 100, elo_bullet = 100 WHERE id = $1`, id)
 	default:
 		writeError(w, http.StatusBadRequest, "INVALID_ACTION", "Azione non valida")
 		return
