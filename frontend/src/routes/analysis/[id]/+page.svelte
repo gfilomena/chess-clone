@@ -312,8 +312,33 @@
 			<button onclick={goNext}  title="Mossa successiva (→)">▶</button>
 			<button onclick={goLast}  title="Ultima mossa">⏭</button>
 		</div>
+	</div>
 
-		<!-- Info engine / classifica mossa corrente -->
+	<!-- Pannello mosse + azioni -->
+	<div class="moves-col">
+		<h3>{$t.analysis.moves}</h3>
+		<div class="moves-list">
+			{#each moveLabels as label, i}
+				{@const cls = i > 0 ? (moveClassifications[i - 1] ?? null) : null}
+				<button
+					class="move-item"
+					class:active={i === currentIdx}
+					onclick={() => goTo(i)}
+				>
+					<span class="move-label-text">{label}</span>
+					{#if cls}
+						<span
+							class="move-cls-badge"
+							class:has-symbol={!!cls.symbol}
+							style="color:{cls.color}"
+							title="{cls.label}{cls.delta > 5 ? ' (−' + (cls.delta/100).toFixed(1) + ')' : ''}"
+						>{cls.symbol || '·'}</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Info engine (live) / badge mossa (revisione) — sotto lista mosse, allineato a destra -->
 		{#if reviewMode}
 			{#if currentClassification}
 				<div class="move-badge-bar" style="--clr:{currentClassification.color}">
@@ -350,31 +375,6 @@
 				{/if}
 			</div>
 		{/if}
-	</div>
-
-	<!-- Pannello mosse + azioni -->
-	<div class="moves-col">
-		<h3>{$t.analysis.moves}</h3>
-		<div class="moves-list">
-			{#each moveLabels as label, i}
-				{@const cls = i > 0 ? (moveClassifications[i - 1] ?? null) : null}
-				<button
-					class="move-item"
-					class:active={i === currentIdx}
-					onclick={() => goTo(i)}
-				>
-					<span class="move-label-text">{label}</span>
-					{#if cls}
-						<span
-							class="move-cls-badge"
-							class:has-symbol={!!cls.symbol}
-							style="color:{cls.color}"
-							title="{cls.label}{cls.delta > 5 ? ' (−' + (cls.delta/100).toFixed(1) + ')' : ''}"
-						>{cls.symbol || '·'}</span>
-					{/if}
-				</button>
-			{/each}
-		</div>
 
 		<!-- Tabellino revisione -->
 		{#if reviewDone && Object.keys(reviewSummary).length > 0}
@@ -416,23 +416,19 @@
 					<span class="progress-label">{$t.analysis.progress(reviewProgress, reviewTotal)}</span>
 				</div>
 			{:else if reviewDone}
-				<button class="btn btn-google" style="width:100%;font-size:0.8rem" onclick={exitReview}>
+				<button class="btn btn-google" style="width:100%" onclick={exitReview}>
 					{$t.analysis.back_live}
 				</button>
 			{:else}
-				<button class="btn btn-primary" style="width:100%;font-size:0.88rem" onclick={startReview}>
+				<button class="btn btn-primary" style="width:100%" onclick={startReview}>
 					{$t.analysis.start_review}
 				</button>
 			{/if}
 		</div>
 
 		<div class="actions">
-			<a
-				href={`${API}/api/games/${gameId}/pgn`}
-				class="btn btn-google"
-				style="text-align:center"
-			>{$t.analysis.download_pgn}</a>
-			<a href="/" class="btn btn-primary" style="text-align:center">{$t.analysis.new_game}</a>
+			<a href={`${API}/api/games/${gameId}/pgn`} class="btn btn-google">{$t.analysis.download_pgn}</a>
+			<a href="/" class="btn btn-primary">{$t.analysis.new_game}</a>
 		</div>
 	</div>
 
@@ -457,10 +453,10 @@
 	}
 
 	/* Ridimensiona la scacchiera per la pagina analisi:
-	   overhead verticale = padding(2rem) + game-info(22px) + nav(44px) + engine-badge(44px) + gaps(36px) ≈ 185px
-	   overhead orizzontale = eval-bar(36px) + col-gap(16px) + moves-col(210px) + padding(48px) ≈ 330px */
+	   overhead verticale = padding(2rem≈32px) + game-info(22px) + nav(44px) + gaps(2×12px≈24px) ≈ 122px → 130px
+	   overhead orizzontale = eval-bar(36px) + col-gap(16px) + moves-col(210px) + padding(48px) ≈ 310px → 320px */
 	:global(.analysis-layout .board-wrap) {
-		width: min(680px, calc(100dvh - 185px), calc(100vw - 330px));
+		width: min(720px, calc(100dvh - 130px), calc(100vw - 320px));
 	}
 
 	/* ── Board column ── */
@@ -538,36 +534,38 @@
 		text-align: center;
 	}
 
-	/* ── Engine info (live) ── */
+	/* ── Engine info (live) — in moves-col, right-aligned ── */
 	.engine-info {
 		display: flex;
-		gap: 1rem;
+		gap: 0.5rem;
 		align-items: center;
-		font-size: 0.85rem;
+		font-size: 0.75rem;
 		color: var(--text-muted);
-		justify-content: center;
-		min-height: 36px;
+		justify-content: flex-end;
 		background: var(--bg-card);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 0.4rem 0.8rem;
+		border-radius: 6px;
+		padding: 0.3rem 0.6rem;
+		flex-shrink: 0;
+		align-self: flex-end;
 	}
 	.analyzing   { color: var(--accent); }
 	.score-text  { font-weight: 700; }
 	.score-text.positive { color: #f0d9b5; }
 	.score-text.negative { color: #888; }
 
-	/* ── Badge mossa corrente (revisione) ── */
+	/* ── Badge mossa corrente (revisione) — in moves-col, right-aligned ── */
 	.move-badge-bar {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding: 0.5rem 0.9rem;
+		gap: 0.4rem;
+		padding: 0.3rem 0.6rem;
 		background: var(--bg-card);
 		border: 1px solid var(--clr, var(--border));
-		border-radius: 8px;
-		min-height: 36px;
-		font-size: 0.85rem;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		flex-shrink: 0;
+		align-self: flex-end;
 	}
 	.move-badge-bar.neutral {
 		color: var(--text-muted);
@@ -575,21 +573,19 @@
 	}
 	.badge-symbol {
 		font-weight: 800;
-		font-size: 0.95rem;
+		font-size: 0.82rem;
 		color: var(--clr, var(--text));
-		min-width: 1.4rem;
-		text-align: center;
 	}
 	.badge-label {
 		font-weight: 600;
 		color: var(--clr, var(--text));
 	}
 	.badge-delta {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--text-muted);
 	}
 	.badge-best {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--text-muted);
 		font-family: monospace;
 	}
@@ -695,6 +691,10 @@
 		gap: 0.4rem;
 		flex-shrink: 0;
 	}
+	.review-section .btn {
+		font-size: 0.75rem !important;
+		padding: 0.35rem 0.5rem !important;
+	}
 	.review-progress { display: flex; flex-direction: column; gap: 0.4rem; }
 	.progress-bar {
 		width: 100%;
@@ -717,9 +717,18 @@
 
 	.actions {
 		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
+		flex-direction: row;
+		gap: 0.35rem;
 		flex-shrink: 0;
+	}
+	.actions a {
+		flex: 1;
+		font-size: 0.75rem !important;
+		padding: 0.35rem 0.4rem !important;
+		text-align: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	/* ── Mobile ── */
