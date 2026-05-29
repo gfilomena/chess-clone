@@ -9,6 +9,7 @@
 	import { computeCaptured } from '$lib/chess/captured';
 	import { t } from '$lib/i18n';
 	import { browser } from '$app/environment';
+	import { API_URL as API } from '$lib/config';
 
 	// ── Auth guard ────────────────────────────────────────────────────────────
 	$effect(() => {
@@ -28,19 +29,21 @@
 	] as const;
 
 	// ── Setup state ───────────────────────────────────────────────────────────
-	let phase: 'setup' | 'playing' = $state('setup');
+	let phase = $state<'setup' | 'playing'>('setup');
 	let selectedBotId = $state('marco');
 	let selectedColor: 'white' | 'black' | 'random' = $state('white');
 	const selectedBot = $derived(BOTS.find(b => b.id === selectedBotId) ?? BOTS[4]);
 
 	// ── Game state ────────────────────────────────────────────────────────────
-	let playerColor: 'white' | 'black' = $state('white');
+	let playerColor = $state<'white' | 'black'>('white');
 	let chessGame = new Chess();
 	let fen = $state(chessGame.fen());
 	let lastMove: { from: string; to: string } | null = $state(null);
 	let isThinking = $state(false);
-	let result: string | null = $state(null);
+	type GameResult = { outcome: 'win' | 'loss' | 'draw'; reason: string } | null;
+	let result: GameResult = $state(null);
 	let moveHistory: string[] = $state([]);
+	let savedBotGameId = $state<string | null>(null);
 
 	// ── Move navigation ────────────────────────────────────────────────────────
 	interface HistoryEntry {
@@ -169,6 +172,16 @@
 
 	const movePairs = $derived(buildMovePairs(moveHistory));
 
+	const resultDisplayText = $derived((() => {
+		if (!result) return '';
+		const r = result as NonNullable<GameResult>;
+		const outcome = r.outcome === 'win' ? $t.bot.you_win :
+		                r.outcome === 'loss' ? $t.bot.bot_wins :
+		                $t.bot.draw;
+		const reason = r.reason ? (($t.game.reasons as any)[r.reason] ?? '') : '';
+		return reason ? `${outcome} — ${reason}` : outcome;
+	})());
+
 	function buildMovePairs(history: string[]) {
 		const pairs: Array<{ n: number; w: string; b: string }> = [];
 		for (let i = 0; i < history.length; i += 2) {
@@ -206,7 +219,7 @@
 		if (!isPlayerTurn) return;
 
 		try {
-			const moveObj: Record<string, string> = { from, to };
+			const moveObj: { from: string; to: string; promotion?: string } = { from, to };
 			if (promotion) moveObj.promotion = promotion;
 			const move = chessGame.move(moveObj);
 			if (!move) return;
@@ -242,7 +255,7 @@
 
 			await sleep(350);
 
-			const moveObj: Record<string, string> = { from, to };
+			const moveObj: { from: string; to: string; promotion?: string } = { from, to };
 			if (promo) moveObj.promotion = promo;
 			const move = chessGame.move(moveObj);
 
@@ -265,8 +278,31 @@
 		isThinking = false;
 	}
 
-	function saveBotPgn() {
+	async function saveBotGame(gameResult: NonNullable<GameResult>) {
+		// Salva sempre il PGN in sessionStorage come fallback
 		if (browser) sessionStorage.setItem('botGamePgn', chessGame.pgn());
+
+		// Prova a salvare nel database per persistenza nel profilo
+		if (!$user) return;
+		try {
+			const res = await fetch(`${API}/api/bot-games`, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					pgn:          chessGame.pgn(),
+					outcome:      gameResult.outcome,
+					finish_reason: gameResult.reason,
+					player_color: playerColor,
+				}),
+			});
+			if (res.ok) {
+				const json = await res.json();
+				savedBotGameId = json.data?.game_id ?? null;
+			}
+		} catch {
+			// silenzio — il fallback sessionStorage è già pronto
+		}
 	}
 
 	function checkGameOver(): boolean {
@@ -274,32 +310,34 @@
 
 		playSound('game_over');
 
+		let gameResult: NonNullable<GameResult>;
 		if (chessGame.isCheckmate()) {
 			const loserColor = chessGame.turn() === 'w' ? 'white' : 'black';
-			result = loserColor === playerColor
-				? 'Scacco matto — Hai perso!'
-				: 'Scacco matto — Hai vinto! 🎉';
+			gameResult = { outcome: loserColor === playerColor ? 'loss' : 'win', reason: 'checkmate' };
 		} else if (chessGame.isStalemate()) {
-			result = 'Patta — Stallo';
+			gameResult = { outcome: 'draw', reason: 'stalemate' };
 		} else if (chessGame.isThreefoldRepetition()) {
-			result = 'Patta — Ripetizione';
+			gameResult = { outcome: 'draw', reason: 'threefold' };
 		} else if (chessGame.isInsufficientMaterial()) {
-			result = 'Patta — Materiale insufficiente';
+			gameResult = { outcome: 'draw', reason: '' };
 		} else {
-			result = 'Patta';
+			gameResult = { outcome: 'draw', reason: '' };
 		}
-		saveBotPgn();
+		result = gameResult;
+		saveBotGame(gameResult);
 		return true;
 	}
 
 	function resign() {
-		result = 'Hai abbandonato';
+		const gameResult: NonNullable<GameResult> = { outcome: 'loss', reason: 'resigned' };
+		result = gameResult;
 		isThinking = false;
-		saveBotPgn();
+		saveBotGame(gameResult);
 	}
 
 	function backToSetup() {
 		result = null;
+		savedBotGameId = null;
 		phase = 'setup';
 		viewIndex = null;
 		// Reset board so it doesn't flicker
@@ -313,7 +351,7 @@
 </script>
 
 <svelte:head>
-	<title>Gioca vs Bot — Chess</title>
+	<title>{$t.bot.page_title} — Chess</title>
 </svelte:head>
 
 <!-- ══════════════════════════════════════════════════════════════════════════
@@ -321,18 +359,18 @@
 ══════════════════════════════════════════════════════════════════════════ -->
 {#if phase === 'setup'}
 	<div class="setup-page">
-		<a href="/play" class="back-link">← Torna al menu</a>
+		<a href="/play" class="back-link">{$t.bot.back_to_menu}</a>
 
 		<div class="setup-card">
 			<div class="setup-header">
 				<span class="setup-icon">🤖</span>
-				<h1>Scegli il tuo avversario</h1>
-				<p class="setup-sub">Tutti i bot usano Stockfish — il motore più forte al mondo</p>
+				<h1>{$t.bot.choose_opponent}</h1>
+				<p class="setup-sub">{$t.bot.engine_desc}</p>
 			</div>
 
 			<!-- Bot selection -->
 			<section class="setup-section">
-				<h2>Avversario</h2>
+				<h2>{$t.bot.opponent_label}</h2>
 				<div class="bots-grid">
 					{#each BOTS as bot}
 						<button
@@ -354,16 +392,16 @@
 
 			<!-- Color selection -->
 			<section class="setup-section">
-				<h2>Scegli il tuo colore</h2>
+				<h2>{$t.bot.choose_color}</h2>
 				<div class="color-row">
 					<button class="color-btn" class:active={selectedColor === 'white'} onclick={() => selectedColor = 'white'}>
-						<span class="color-piece">♔</span>Bianco
+						<span class="color-piece">♔</span>{$t.bot.white}
 					</button>
 					<button class="color-btn" class:active={selectedColor === 'black'} onclick={() => selectedColor = 'black'}>
-						<span class="color-piece dark">♚</span>Nero
+						<span class="color-piece dark">♚</span>{$t.bot.black}
 					</button>
 					<button class="color-btn" class:active={selectedColor === 'random'} onclick={() => selectedColor = 'random'}>
-						<span class="color-piece">🎲</span>Casuale
+						<span class="color-piece">🎲</span>{$t.bot.random}
 					</button>
 				</div>
 			</section>
@@ -371,9 +409,9 @@
 			<!-- Start button -->
 			<button class="btn btn-primary start-btn" onclick={startGame} disabled={!engineReady}>
 				{#if engineReady}
-					▶ Sfida {selectedBot.name}
+					{$t.bot.challenge(selectedBot.name)}
 				{:else}
-					Caricamento motore...
+					{$t.bot.engine_loading}
 				{/if}
 			</button>
 		</div>
@@ -406,7 +444,7 @@
 				{#if isThinking}
 					<div class="thinking-badge">
 						<div class="thinking-dot"></div>
-						Sta pensando...
+						{$t.bot.thinking}
 					</div>
 				{/if}
 			</div>
@@ -430,10 +468,10 @@
 			<div class="board-container">
 				{#if result !== null && !isReviewing}
 					<div class="overlay finished">
-						<p class="result-text">{result}</p>
+						<p class="result-text">{resultDisplayText}</p>
 						<div class="overlay-btns">
 							<button class="btn btn-primary" onclick={backToSetup}>{$t.bot.new_game}</button>
-							<a href="/analysis/bot?autoReview=1" class="btn btn-google">{$t.game.review}</a>
+							<a href="/analysis/{savedBotGameId ?? 'bot'}?autoReview=1" class="btn btn-google">{$t.game.review}</a>
 						</div>
 					</div>
 				{/if}
@@ -449,8 +487,8 @@
 
 			<!-- Nav bar timeline (solo mobile) -->
 			<div class="mobile-nav-bar">
-				<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
-				<button class="nav-btn" onclick={navPrev}  disabled={atStart} title="Mossa precedente">◀</button>
+				<button class="nav-btn" onclick={navFirst} disabled={atStart} title={$t.common.first_move}>⏮</button>
+				<button class="nav-btn" onclick={navPrev}  disabled={atStart} title={$t.common.prev_move}>◀</button>
 				<div class="nav-timeline">
 					<div class="timeline-track">
 						<div class="timeline-fill" style="width:{timelinePercent}%">
@@ -459,8 +497,8 @@
 					</div>
 					<span class="timeline-label" class:live={!isReviewing}>{navLabel}</span>
 				</div>
-				<button class="nav-btn" onclick={navNext}  disabled={atEnd} title="Mossa successiva">▶</button>
-				<button class="nav-btn" onclick={navLast}  disabled={atEnd} title="Ultima mossa">⏭</button>
+				<button class="nav-btn" onclick={navNext}  disabled={atEnd} title={$t.common.next_move}>▶</button>
+				<button class="nav-btn" onclick={navLast}  disabled={atEnd} title={$t.common.last_move}>⏭</button>
 			</div>
 
 			<!-- Player row (bottom) -->
@@ -479,7 +517,7 @@
 
 			<!-- Pulsante toggle pannello (solo mobile) -->
 			<button class="panel-toggle" onclick={() => panelOpen = !panelOpen}>
-				{panelOpen ? '✕ Chiudi' : '📋 Mosse & Azioni'}
+				{panelOpen ? $t.common.close : $t.common.moves_actions}
 			</button>
 		</div>
 
@@ -497,13 +535,13 @@
 			<!-- Handle + header (solo mobile) -->
 			<div class="panel-drag-handle"></div>
 			<div class="panel-header">
-				<span>Mosse & Azioni</span>
+				<span>{$t.common.moves_actions_title}</span>
 				<button class="panel-close" onclick={() => panelOpen = false}>✕</button>
 			</div>
 
 			<!-- Move list -->
 			<div class="moves-panel">
-				<h3>Mosse</h3>
+				<h3>{$t.common.moves}</h3>
 				{#if movePairs.length === 0}
 					<p class="no-moves">—</p>
 				{:else}
@@ -530,7 +568,7 @@
 						onclick={resign}
 						disabled={isThinking}
 					>
-						Abbandona
+						{$t.bot.resign}
 					</button>
 				</div>
 			{/if}
@@ -538,28 +576,28 @@
 			<!-- Status badge -->
 			<div class="status-badge" class:active={isPlayerTurn} class:thinking={isThinking}>
 				{#if result !== null}
-					🏁 Partita terminata
+					{$t.bot.status_finished}
 				{:else if isThinking}
-					🤔 Bot sta pensando...
+					{$t.bot.status_thinking}
 				{:else if isPlayerTurn}
-					🟢 Tocca a te
+					{$t.bot.status_your_turn}
 				{:else}
-					⏳ Aspetta...
+					{$t.bot.status_wait}
 				{/if}
 			</div>
 
 			<!-- Navigazione mosse -->
 			<div class="nav-row" class:reviewing={isReviewing}>
-				<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
-				<button class="nav-btn" onclick={navPrev}  disabled={atStart} title="Mossa precedente">◀</button>
+				<button class="nav-btn" onclick={navFirst} disabled={atStart} title={$t.common.first_move}>⏮</button>
+				<button class="nav-btn" onclick={navPrev}  disabled={atStart} title={$t.common.prev_move}>◀</button>
 				<span class="nav-label" class:live={!isReviewing}>{navLabel}</span>
-				<button class="nav-btn" onclick={navNext}  disabled={atEnd}   title="Mossa successiva">▶</button>
-				<button class="nav-btn" onclick={navLast}  disabled={atEnd}   title="Ultima mossa">⏭</button>
+				<button class="nav-btn" onclick={navNext}  disabled={atEnd}   title={$t.common.next_move}>▶</button>
+				<button class="nav-btn" onclick={navLast}  disabled={atEnd}   title={$t.common.last_move}>⏭</button>
 			</div>
 
 			<!-- Back link -->
 			<button class="btn btn-google" style="width:100%;font-size:0.85rem" onclick={backToSetup}>
-				← Nuova partita
+				{$t.bot.back}
 			</button>
 		</div>
 	</div>
@@ -573,8 +611,11 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 2rem 1rem 3rem;
-	gap: 1.5rem;
+	justify-content: center;
+	height: 100dvh;
+	overflow: hidden;
+	padding: clamp(0.5rem, 1.5dvh, 1.5rem) 1rem;
+	gap: clamp(0.3rem, 0.8dvh, 1rem);
 }
 
 .back-link {
@@ -590,52 +631,56 @@
 	background: var(--bg-card);
 	border: 1px solid var(--border);
 	border-radius: 16px;
-	padding: 2.5rem 2rem;
+	padding: clamp(1rem, 2dvh, 2.5rem) clamp(1rem, 2vw, 2rem);
 	width: 100%;
 	max-width: 540px;
 	display: flex;
 	flex-direction: column;
-	gap: 2rem;
+	gap: clamp(0.6rem, 1.5dvh, 2rem);
+	max-height: calc(100dvh - 2.5rem);
+	overflow-y: auto;
+	scrollbar-width: none;
 }
+.setup-card::-webkit-scrollbar { display: none; }
 
 .setup-header {
 	text-align: center;
 }
 .setup-icon {
-	font-size: 3rem;
+	font-size: clamp(1.6rem, 3.5dvh, 3rem);
 	display: block;
-	margin-bottom: 0.5rem;
+	margin-bottom: 0.25rem;
 }
 .setup-header h1 {
-	font-size: 1.8rem;
-	margin-bottom: 0.35rem;
+	font-size: clamp(1.2rem, 2.5dvh, 1.8rem);
+	margin-bottom: 0.2rem;
 }
 .setup-sub {
 	color: var(--text-muted);
-	font-size: 0.95rem;
+	font-size: clamp(0.72rem, 1.3dvh, 0.95rem);
 }
 
 .setup-section h2 {
-	font-size: 0.8rem;
+	font-size: 0.78rem;
 	text-transform: uppercase;
 	letter-spacing: 0.07em;
 	color: var(--text-muted);
 	font-weight: 600;
-	margin-bottom: 0.75rem;
+	margin-bottom: clamp(0.35rem, 0.8dvh, 0.75rem);
 }
 
 /* Color buttons */
 .color-row {
 	display: flex;
-	gap: 0.75rem;
+	gap: 0.6rem;
 }
 .color-btn {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 0.4rem;
-	padding: 0.85rem 0.5rem;
+	gap: 0.3rem;
+	padding: clamp(0.45rem, 1dvh, 0.85rem) 0.5rem;
 	background: var(--bg);
 	border: 2px solid var(--border);
 	border-radius: 10px;
@@ -651,7 +696,7 @@
 	background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .color-piece {
-	font-size: 1.8rem;
+	font-size: clamp(1.3rem, 2.5dvh, 1.8rem);
 	line-height: 1;
 	filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
@@ -661,14 +706,14 @@
 .bots-grid {
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
-	gap: 0.6rem;
+	gap: clamp(0.3rem, 0.7dvh, 0.6rem);
 }
 .bot-card {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 0.2rem;
-	padding: 0.75rem 0.4rem 0.6rem;
+	gap: clamp(0.08rem, 0.2dvh, 0.2rem);
+	padding: clamp(0.35rem, 0.9dvh, 0.75rem) 0.4rem clamp(0.25rem, 0.7dvh, 0.6rem);
 	background: var(--bg);
 	border: 2px solid var(--border);
 	border-radius: 10px;
@@ -685,46 +730,43 @@
 	background: color-mix(in srgb, var(--bot-color, var(--accent)) 10%, transparent);
 }
 .bot-piece {
-	font-size: 1.7rem;
+	font-size: clamp(1.1rem, 2dvh, 1.7rem);
 	line-height: 1;
 	color: var(--bot-color, var(--accent));
 	filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
 }
 .bot-name {
-	font-size: 0.82rem;
+	font-size: clamp(0.62rem, 1dvh, 0.82rem);
 	font-weight: 700;
 	color: var(--text);
-	margin-top: 0.1rem;
 }
 .bot-stars {
-	font-size: 0.6rem;
+	font-size: clamp(0.45rem, 0.75dvh, 0.6rem);
 	color: var(--bot-color, var(--accent));
 	letter-spacing: 1px;
 }
 .bot-badge {
-	font-size: 0.55rem;
+	font-size: clamp(0.4rem, 0.65dvh, 0.55rem);
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
-	padding: 0.12rem 0.45rem;
+	padding: 0.1rem 0.4rem;
 	border-radius: 20px;
 	background: var(--bot-color, var(--accent));
 	color: #fff;
 	white-space: nowrap;
 }
 .bot-quote {
-	font-size: 0.58rem;
+	font-size: clamp(0.45rem, 0.7dvh, 0.58rem);
 	color: var(--text-muted);
 	font-style: italic;
 	line-height: 1.3;
-	margin-top: 0.15rem;
 	display: none; /* visibile solo su card attiva */
 }
 .bot-card.active .bot-quote { display: block; }
 .bot-elo {
-	font-size: 0.6rem;
+	font-size: clamp(0.45rem, 0.7dvh, 0.6rem);
 	color: var(--text-muted);
-	margin-top: 0.1rem;
 }
 /* Badge inline nella riga giocatore */
 .inline-badge {
@@ -741,8 +783,8 @@
 
 .start-btn {
 	width: 100%;
-	padding: 1rem;
-	font-size: 1.05rem;
+	padding: clamp(0.6rem, 1.3dvh, 1rem);
+	font-size: clamp(0.9rem, 1.5dvh, 1.05rem);
 }
 .start-btn:disabled {
 	opacity: 0.5;
@@ -754,10 +796,11 @@
 ══════════════════════════════════════════════════════ */
 .game-layout {
 	display: flex;
-	gap: 2rem;
-	padding: 1.5rem 2rem;
-	min-height: 100vh;
-	align-items: flex-start;
+	gap: clamp(0.75rem, 1.5vw, 2rem);
+	padding: clamp(0.4rem, 0.8dvh, 1rem) clamp(0.75rem, 1.5vw, 2rem);
+	height: 100dvh;
+	overflow: hidden;
+	align-items: center;
 	justify-content: center;
 }
 
@@ -863,7 +906,9 @@
 	flex-direction: column;
 	gap: 1rem;
 	width: 240px;
-	padding-top: 3rem;
+	padding-top: 0;
+	height: 100%;
+	justify-content: center;
 }
 
 .moves-panel {
@@ -872,7 +917,8 @@
 	border-radius: 8px;
 	padding: 1rem;
 	flex: 1;
-	max-height: 340px;
+	min-height: 0;
+	max-height: none;
 	overflow-y: auto;
 }
 .moves-panel h3 {

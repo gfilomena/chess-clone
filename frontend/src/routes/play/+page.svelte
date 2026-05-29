@@ -4,6 +4,8 @@
 	import { user, authLoading } from '$lib/stores/auth';
 	import { onlineUsers, fetchOnlineUsers, sendInvite } from '$lib/stores/invitations';
 	import { API_URL as API } from '$lib/config';
+	import { t } from '$lib/i18n';
+	import { get } from 'svelte/store';
 
 	// ── Auth guard ────────────────────────────────────────────────────────────
 	$effect(() => {
@@ -132,7 +134,7 @@
 			if (!res.ok) throw new Error();
 		} catch {
 			mm = 'error';
-			errorMsg = 'Impossibile connettersi al server';
+			errorMsg = get(t).play.conn_error;
 			return;
 		}
 
@@ -154,7 +156,7 @@
 		eventSource.onerror = () => {
 			if (mm === 'searching') {
 				mm = 'error';
-				errorMsg = 'Connessione persa. Riprova.';
+				errorMsg = get(t).play.conn_lost;
 				cleanup();
 			}
 		};
@@ -184,7 +186,7 @@
 			await sendInvite(targetID);
 		} catch (err: any) {
 			fi = 'error';
-			inviteError = err.message ?? 'Errore invio invito';
+			inviteError = err.message ?? get(t).play.err_invite;
 		}
 	}
 
@@ -206,7 +208,7 @@
 		if (s < 20) return '±200';
 		if (s < 30) return '±300';
 		if (s < 60) return '±500';
-		return 'qualsiasi ELO';
+		return get(t).play.any_elo;
 	}
 
 	function eloDiff(opponent: number): string {
@@ -232,7 +234,7 @@
 </script>
 
 <svelte:head>
-	<title>Trova partita — Chess</title>
+	<title>{$t.play.page_title} — Chess</title>
 </svelte:head>
 
 <div class="play-page">
@@ -241,14 +243,14 @@
 	{#if fi === 'pending'}
 		<div class="invite-waiting-box">
 			<div class="spinner"></div>
-			<p class="invite-waiting-text">Invito inviato a <strong>{invitedUsername}</strong></p>
-			<p class="invite-waiting-sub">In attesa che accetti... (scade in 90s)</p>
-			<button class="btn btn-google cancel-btn" onclick={cancelInvite}>Annulla invito</button>
+			<p class="invite-waiting-text">{$t.play.invite_sent(invitedUsername)}</p>
+			<p class="invite-waiting-sub">{$t.play.invite_waiting}</p>
+			<button class="btn btn-google cancel-btn" onclick={cancelInvite}>{$t.play.invite_cancel}</button>
 		</div>
 
 	{:else if fi === 'error'}
 		<div class="error-msg" style="max-width:340px;text-align:center">{inviteError}</div>
-		<button class="btn btn-primary" onclick={cancelInvite}>OK</button>
+		<button class="btn btn-primary" onclick={cancelInvite}>{$t.common.ok}</button>
 
 	{:else}
 
@@ -281,7 +283,7 @@
 				<div class="tc-category">
 					<div class="tc-cat-label">
 						<span class="tc-cat-icon">⚙️</span>
-						Personalizzato
+						{$t.play.custom}
 					</div>
 					<button
 						class="tc-btn custom-toggle"
@@ -289,13 +291,13 @@
 						onclick={enableCustom}
 						disabled={mm !== 'idle'}
 					>
-						{customMode ? customLabel : 'Imposta...'}
+						{customMode ? customLabel : $t.play.set_custom}
 					</button>
 
 					{#if customMode}
 						<div class="custom-inputs">
 							<div class="custom-field">
-								<label>Minuti</label>
+								<label>{$t.play.minutes}</label>
 								<input
 									type="number" min="0" max="180"
 									bind:value={customMin}
@@ -303,7 +305,7 @@
 								/>
 							</div>
 							<div class="custom-field">
-								<label>Secondi</label>
+								<label>{$t.play.seconds}</label>
 								<input
 									type="number" min="0" max="59"
 									bind:value={customSec}
@@ -311,7 +313,7 @@
 								/>
 							</div>
 							<div class="custom-field">
-								<label>Inc./mossa (s)</label>
+								<label>{$t.play.inc_per_move}</label>
 								<input
 									type="number" min="0" max="60"
 									bind:value={customInc}
@@ -329,7 +331,7 @@
 				<!-- ELO info + azioni -->
 				<div class="tc-footer">
 					<span class="tc-elo">
-						Il tuo ELO {activeType}: <strong>{myElo}</strong>
+						{$t.play.your_elo(activeType, myElo)}
 					</span>
 					<div class="play-options">
 						<button
@@ -337,10 +339,10 @@
 							onclick={startSearch}
 							disabled={customMode && customTcSec < 1}
 						>
-							Trova partita
+							{$t.play.find_game}
 						</button>
 						<a href="/play/bot" class="bot-btn">
-							🤖 Gioca contro il Bot
+							{$t.play.play_vs_bot}
 						</a>
 					</div>
 				</div>
@@ -349,27 +351,27 @@
 		<!-- ── Searching ───────────────────────────────────────────────── -->
 		{:else if mm === 'searching'}
 			<div class="tc-info-badge">
-				{customMode ? '⚙️' : (CATEGORIES.find(c => c.controls.some(t => t.tc === selected?.tc && t.inc === selected?.inc))?.icon ?? '🕐')}
+				{customMode ? '⚙️' : (CATEGORIES.find(c => c.controls.some(tc => tc.tc === selected?.tc && tc.inc === selected?.inc))?.icon ?? '🕐')}
 				{activeLabel} · {activeType}
 			</div>
 			<div class="searching-box">
 				<div class="spinner"></div>
-				<p class="wait-time">In attesa... <strong>{formatWait(waitSeconds)}</strong></p>
-				<p class="elo-info">Cercando avversario {eloRange(waitSeconds)}</p>
-				<button class="btn btn-google cancel-btn" onclick={cancelSearch}>Annulla</button>
+				<p class="wait-time">{$t.play.searching(formatWait(waitSeconds))}</p>
+				<p class="elo-info">{$t.play.searching_opponent(eloRange(waitSeconds))}</p>
+				<button class="btn btn-google cancel-btn" onclick={cancelSearch}>{$t.play.cancel_search}</button>
 			</div>
 
 		<!-- ── Found ────────────────────────────────────────────────────── -->
 		{:else if mm === 'found'}
 			<div class="found-box">
 				<div class="found-icon">⚡</div>
-				<p>Match trovato! Avvio partita...</p>
+				<p>{$t.play.match_found}</p>
 			</div>
 
 		<!-- ── Error ────────────────────────────────────────────────────── -->
 		{:else if mm === 'error'}
 			<div class="error-msg" style="max-width:340px;text-align:center">{errorMsg}</div>
-			<button class="btn btn-primary" onclick={startSearch}>Riprova</button>
+			<button class="btn btn-primary" onclick={startSearch}>{$t.common.retry}</button>
 		{/if}
 
 	{/if}
@@ -379,14 +381,14 @@
 		<section class="online-section">
 			<h3 class="online-title">
 				<span class="online-dot"></span>
-				Giocatori online
+				{$t.play.online_players}
 				{#if $onlineUsers.length > 0}
 					<span class="online-count">({$onlineUsers.length})</span>
 				{/if}
 			</h3>
 
 			{#if $onlineUsers.length === 0}
-				<p class="online-empty">Nessun altro giocatore online al momento.</p>
+				<p class="online-empty">{$t.play.no_online}</p>
 			{:else}
 				<ul class="online-list">
 					{#each $onlineUsers as u (u.id)}
@@ -410,7 +412,7 @@
 								onclick={() => handleInvite(u.id, u.username)}
 								disabled={mm === 'searching'}
 							>
-								Sfida
+								{$t.play.challenge}
 							</button>
 						</li>
 					{/each}
@@ -426,8 +428,11 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 1.75rem;
-		padding: 2rem 1.5rem 3rem;
+		justify-content: center;
+		height: 100dvh;
+		overflow: hidden;
+		gap: clamp(0.75rem, 1.5dvh, 1.75rem);
+		padding: clamp(0.5rem, 1.5dvh, 1.5rem) 1.5rem;
 	}
 
 	/* ── Time control panel ── */
@@ -435,12 +440,13 @@
 		background: var(--bg-card);
 		border: 1px solid var(--border);
 		border-radius: 14px;
-		padding: 1.5rem 1.75rem;
+		padding: clamp(0.75rem, 1.5dvh, 1.5rem) clamp(1rem, 2vw, 1.75rem);
 		width: 100%;
 		max-width: 400px;
 		display: flex;
 		flex-direction: column;
-		gap: 1.25rem;
+		gap: clamp(0.6rem, 1.2dvh, 1.25rem);
+		flex-shrink: 0;
 	}
 
 	.tc-category { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -569,7 +575,14 @@
 	.invite-waiting-sub { font-size: 0.85rem; color: var(--text-muted); }
 
 	/* ── Online section ── */
-	.online-section { width: 100%; max-width: 400px; }
+	.online-section {
+		width: 100%;
+		max-width: 400px;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		overflow: hidden;
+	}
 	.online-title {
 		display: flex; align-items: center; gap: 0.5rem;
 		font-size: 0.85rem; font-weight: 600; color: var(--text-muted);
@@ -585,7 +598,7 @@
 	@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 	.online-count { color: var(--text-muted); font-weight: 400; }
 	.online-empty { color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem 0; }
-	.online-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+	.online-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; max-height: clamp(120px, 28dvh, 360px); }
 	.online-item {
 		display: flex; align-items: center; justify-content: space-between;
 		background: var(--bg-card); border: 1px solid var(--border);
@@ -620,12 +633,12 @@
 	/* ── Mobile (≤ 768px) ── */
 	@media (max-width: 768px) {
 		.play-page {
-			padding: 1rem 0.75rem 2rem;
-			gap: 1.25rem;
+			padding: clamp(0.4rem, 1dvh, 1rem) 0.75rem;
+			gap: clamp(0.5rem, 1dvh, 1rem);
 		}
 		.tc-panel {
 			max-width: 100%;
-			padding: 1.25rem 1rem;
+			padding: clamp(0.6rem, 1.5dvh, 1.25rem) 1rem;
 		}
 		.online-section {
 			max-width: 100%;

@@ -1,10 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"chess-clone/backend/internal/db"
 )
+
+// UUID fisso per l'utente-bot (nil UUID, non generato mai da uuid_generate_v4)
+const botUserID = "00000000-0000-0000-0000-000000000000"
 
 type GamesHandler struct {
 	pg *db.Postgres
@@ -148,4 +152,73 @@ func (h *GamesHandler) GetUserGames(w http.ResponseWriter, r *http.Request) {
 		games = []GameRow{}
 	}
 	writeJSON(w, http.StatusOK, games)
+}
+
+// POST /api/bot-games — salva una partita giocata contro il bot
+// Le partite bot non generano variazioni ELO.
+func (h *GamesHandler) SaveBotGame(w http.ResponseWriter, r *http.Request) {
+	userID, err := getUserIDFromCookie(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Non autenticato")
+		return
+	}
+
+	var body struct {
+		PGN          string `json:"pgn"`
+		Outcome      string `json:"outcome"`       // "win" | "loss" | "draw"
+		FinishReason string `json:"finish_reason"` // "checkmate" | "stalemate" | "threefold" | "resigned" | ""
+		PlayerColor  string `json:"player_color"`  // "white" | "black"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Richiesta non valida")
+		return
+	}
+
+	// Determina white_id / black_id in base al colore del giocatore
+	var whiteID, blackID string
+	if body.PlayerColor == "white" {
+		whiteID = userID
+		blackID = botUserID
+	} else {
+		whiteID = botUserID
+		blackID = userID
+	}
+
+	// Mappa outcome → enum game_result
+	var dbResult string
+	switch body.Outcome {
+	case "win":
+		if body.PlayerColor == "white" {
+			dbResult = "white"
+		} else {
+			dbResult = "black"
+		}
+	case "loss":
+		if body.PlayerColor == "white" {
+			dbResult = "black"
+		} else {
+			dbResult = "white"
+		}
+	default:
+		dbResult = "draw"
+	}
+
+	// Normalizza finish_reason (es. materiale insufficiente → draw_agreed)
+	finishReason := body.FinishReason
+	if finishReason == "" {
+		finishReason = "draw_agreed"
+	}
+
+	var gameID string
+	err = h.pg.Pool.QueryRow(r.Context(), `
+		INSERT INTO games (white_id, black_id, status, result, finish_reason, pgn, started_at, finished_at)
+		VALUES ($1, $2, 'finished', $3, $4, $5, NOW(), NOW())
+		RETURNING id
+	`, whiteID, blackID, dbResult, finishReason, body.PGN).Scan(&gameID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "SERVER_ERROR", "Errore salvataggio partita bot")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{"game_id": gameID})
 }

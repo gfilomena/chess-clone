@@ -360,16 +360,16 @@
 	/* ── Board wrapper ──────────────────────────────────────────── */
 	.board-wrap {
 		position: relative;
-		width: min(560px, calc(100vh - 160px), calc(100vw - 520px));
+		width: min(560px, calc(100dvh - 130px), calc(100vw - 480px));
 		aspect-ratio: 1 / 1;
 	}
 
 	@media (max-width: 768px) {
 		.board-wrap {
 			/* Su mobile: riempi la larghezza viewport (meno margine laterale).
-			   calc(100vh - 220px) lascia spazio per header(52) + righe player(88)
+			   calc(100dvh - 220px) lascia spazio per header(52) + righe player(88)
 			   + pulsante panel(48) + gap/padding(~32). */
-			width: min(calc(100vw - 1rem), calc(100vh - 220px));
+			width: min(calc(100vw - 1rem), calc(100dvh - 220px));
 		}
 	}
 

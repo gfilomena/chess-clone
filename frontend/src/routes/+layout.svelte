@@ -9,6 +9,7 @@
 		startInviteSSE, stopInviteSSE
 	} from '$lib/stores/invitations';
 	import InviteToast from '$lib/components/InviteToast.svelte';
+	import CookieBanner from '$lib/components/CookieBanner.svelte';
 	import { t, lang, setLang, LANGS } from '$lib/i18n';
 
 	let { children } = $props();
@@ -49,6 +50,7 @@
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>Chess</title>
+	<meta name="description" content="Scacchi online gratuiti con matchmaking ELO, bot Stockfish e analisi partite. Rapid, Blitz, Bullet — nessun abbonamento." />
 </svelte:head>
 
 <!-- ── Mobile top bar (solo < 768px) ───────────────────────── -->
@@ -147,6 +149,13 @@
 					>{l.flag}</button>
 				{/each}
 			</div>
+
+			<!-- Legal links -->
+			<div class="legal-links">
+				<a href="/about" class="legal-link" onclick={() => sidebarOpen = false}>{$t.nav.about}</a>
+				<span class="legal-sep">·</span>
+				<a href="/privacy" class="legal-link" onclick={() => sidebarOpen = false}>{$t.nav.privacy}</a>
+			</div>
 		</div>
 	</aside>
 
@@ -159,6 +168,9 @@
 
 <!-- Toast inviti — visibile in ogni pagina -->
 <InviteToast />
+
+<!-- Cookie consent banner (GDPR) -->
+<CookieBanner />
 
 <style>
 	.lang-switcher {
@@ -183,5 +195,25 @@
 	.lang-btn.active {
 		opacity: 1;
 		border-color: var(--accent);
+	}
+
+	.legal-links {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.4rem 0.75rem 0.6rem;
+	}
+	.legal-link {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+		text-decoration: none;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+	.legal-link:hover { opacity: 1; text-decoration: none; }
+	.legal-sep {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+		opacity: 0.4;
 	}
 </style>

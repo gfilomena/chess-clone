@@ -10,6 +10,7 @@
 	import { initSounds, playSound, type SoundName } from '$lib/chess/sounds';
 	import { computeCaptured } from '$lib/chess/captured';
 	import { t } from '$lib/i18n';
+	import { get } from 'svelte/store';
 
 	const gameId = $page.params.id!;
 
@@ -153,7 +154,7 @@
 	}
 
 	function handleResign() {
-		if (confirm('Sei sicuro di voler abbandonare?')) {
+		if (confirm(get(t).game.resign_confirm)) {
 			sendResign();
 		}
 	}
@@ -167,22 +168,15 @@
 		gameState.update(s => ({ ...s, drawOffered: false }));
 	}
 
-	function resultText(result: string | null, reason: string | null): string {
+	const gameResultText = $derived((() => {
+		const result = $gameState.result;
+		const reason = $gameState.finishReason;
 		if (!result) return '';
-		const who = result === 'draw' ? 'Patta' :
-			result === $gameState.playerColor ? 'Hai vinto!' : 'Hai perso';
-		const why: Record<string, string> = {
-			checkmate: 'scacco matto',
-			timeout: 'tempo scaduto',
-			resigned: 'abbandono',
-			stalemate: 'stallo',
-			fifty_moves: 'regola 50 mosse',
-			threefold: 'ripetizione',
-			abandoned: 'abbandono avversario',
-			draw_agreed: 'patta concordata'
-		};
-		return `${who} — ${why[reason ?? ''] ?? reason}`;
-	}
+		const who = result === 'draw' ? $t.result.draw :
+			result === $gameState.playerColor ? $t.game.i_win : $t.game.i_lose;
+		const why = ($t.game.reasons as any)[reason ?? ''] ?? reason ?? '';
+		return why ? `${who} — ${why}` : who;
+	})());
 </script>
 
 <svelte:head>
@@ -198,7 +192,7 @@
 		<div class="player-row opponent">
 			<div class="player-info">
 				<span class="player-name">
-					{$gameState.playerColor === 'white' ? 'Nero' : 'Bianco'}
+					{$gameState.playerColor === 'white' ? $t.game.black : $t.game.white}
 				</span>
 				{#if oppCaptured.length > 0 || oppAdv > 0}
 					<div class="captured-row">
@@ -232,13 +226,13 @@
 		<div class="board-container">
 			{#if $gameState.status === 'waiting'}
 				<div class="overlay">
-					<p>In attesa dell'avversario...</p>
+					<p>{$t.game.waiting_opponent}</p>
 				</div>
 			{/if}
 
 			{#if $gameState.status === 'finished' && !isReviewing}
 				<div class="overlay finished">
-					<p class="result-text">{resultText($gameState.result, $gameState.finishReason)}</p>
+					<p class="result-text">{gameResultText}</p>
 					<div class="overlay-btns">
 						<a href="/" class="btn btn-primary">{$t.game.new_game}</a>
 						<a href="/analysis/{gameId}?autoReview=1" class="btn btn-google">{$t.game.review}</a>
@@ -257,8 +251,8 @@
 
 		<!-- Nav bar timeline (solo mobile) -->
 		<div class="mobile-nav-bar">
-			<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
-			<button class="nav-btn" onclick={navPrev}  disabled={atStart} title="Mossa precedente">◀</button>
+			<button class="nav-btn" onclick={navFirst} disabled={atStart} title={$t.common.first_move}>⏮</button>
+			<button class="nav-btn" onclick={navPrev}  disabled={atStart} title={$t.common.prev_move}>◀</button>
 			<div class="nav-timeline">
 				<div class="timeline-track">
 					<div class="timeline-fill" style="width:{timelinePercent}%">
@@ -267,8 +261,8 @@
 				</div>
 				<span class="timeline-label" class:live={!isReviewing}>{navLabel}</span>
 			</div>
-			<button class="nav-btn" onclick={navNext}  disabled={atEnd} title="Mossa successiva">▶</button>
-			<button class="nav-btn" onclick={navLast}  disabled={atEnd} title="Ultima mossa">⏭</button>
+			<button class="nav-btn" onclick={navNext}  disabled={atEnd} title={$t.common.next_move}>▶</button>
+			<button class="nav-btn" onclick={navLast}  disabled={atEnd} title={$t.common.last_move}>⏭</button>
 		</div>
 
 		<!-- Giocatore (in basso) -->
@@ -292,11 +286,11 @@
 		<!-- Pulsante toggle pannello (solo mobile) -->
 		<button class="panel-toggle" onclick={() => panelOpen = !panelOpen}>
 			{#if $gameState.drawOffered}
-				🤝 Offerta patta!
+				{$t.game.draw_offer_panel}
 			{:else if panelOpen}
-				✕ Chiudi
+				{$t.common.close}
 			{:else}
-				📋 Mosse & Azioni
+				{$t.common.moves_actions}
 			{/if}
 		</button>
 	</div>
@@ -315,20 +309,20 @@
 		<!-- Handle + header (solo mobile) -->
 		<div class="panel-drag-handle"></div>
 		<div class="panel-header">
-			<span>Mosse & Azioni</span>
+			<span>{$t.common.moves_actions_title}</span>
 			<button class="panel-close" onclick={() => panelOpen = false}>✕</button>
 		</div>
 
 		<!-- Offerta patta ricevuta -->
 		{#if $gameState.drawOffered}
 			<div class="draw-offer">
-				<p>L'avversario offre patta</p>
+				<p>{$t.game.draw_offered}</p>
 				<div style="display:flex;gap:0.5rem;margin-top:0.5rem">
 					<button class="btn btn-primary" style="flex:1" onclick={() => handleDrawResponse(true)}>
-						Accetta
+						{$t.game.accept}
 					</button>
 					<button class="btn btn-google" style="flex:1" onclick={() => handleDrawResponse(false)}>
-						Rifiuta
+						{$t.game.decline}
 					</button>
 				</div>
 			</div>
@@ -336,7 +330,7 @@
 
 		<!-- Lista mosse (PGN semplificato) -->
 		<div class="moves-panel">
-			<h3>Mosse</h3>
+			<h3>{$t.common.moves}</h3>
 			<div class="pgn-text">
 				{$gameState.pgn || '—'}
 			</div>
@@ -346,31 +340,31 @@
 		{#if $gameState.status === 'active'}
 			<div class="actions">
 				<button class="btn btn-google" onclick={handleDrawOffer} style="width:100%">
-					Offri patta
+					{$t.game.offer_draw}
 				</button>
 				<button class="btn" style="background:var(--danger);color:#fff;width:100%" onclick={handleResign}>
-					Abbandona
+					{$t.game.resign}
 				</button>
 			</div>
 		{/if}
 
 		<!-- Navigazione mosse -->
 		<div class="nav-row" class:reviewing={isReviewing}>
-			<button class="nav-btn" onclick={navFirst} disabled={atStart} title="Prima mossa">⏮</button>
-			<button class="nav-btn" onclick={navPrev}  disabled={atStart} title="Mossa precedente">◀</button>
+			<button class="nav-btn" onclick={navFirst} disabled={atStart} title={$t.common.first_move}>⏮</button>
+			<button class="nav-btn" onclick={navPrev}  disabled={atStart} title={$t.common.prev_move}>◀</button>
 			<span class="nav-label" class:live={!isReviewing}>{navLabel}</span>
-			<button class="nav-btn" onclick={navNext}  disabled={atEnd}   title="Mossa successiva">▶</button>
-			<button class="nav-btn" onclick={navLast}  disabled={atEnd}   title="Ultima mossa">⏭</button>
+			<button class="nav-btn" onclick={navNext}  disabled={atEnd}   title={$t.common.next_move}>▶</button>
+			<button class="nav-btn" onclick={navLast}  disabled={atEnd}   title={$t.common.last_move}>⏭</button>
 		</div>
 
 		<!-- Status partita -->
 		<div class="status-badge" class:active={$gameState.status === 'active'}>
 			{#if $gameState.status === 'waiting'}
-				⏳ In attesa...
+				{$t.game.status_waiting}
 			{:else if $gameState.status === 'active'}
-				{isMyTurn ? '🟢 Tocca a te' : '⏳ Aspetta...'}
+				{isMyTurn ? $t.game.your_turn : $t.game.wait}
 			{:else if $gameState.status === 'finished'}
-				🏁 Partita terminata
+				{$t.game.status_finished}
 			{/if}
 		</div>
 	</div>
@@ -379,10 +373,11 @@
 <style>
 	.game-layout {
 		display: flex;
-		gap: 2rem;
-		padding: 1.5rem 2rem;
-		min-height: 100vh;
-		align-items: flex-start;
+		gap: clamp(0.75rem, 1.5vw, 2rem);
+		padding: clamp(0.4rem, 0.8dvh, 1rem) clamp(0.75rem, 1.5vw, 2rem);
+		height: 100dvh;
+		overflow: hidden;
+		align-items: center;
 		justify-content: center;
 	}
 
@@ -482,7 +477,9 @@
 		flex-direction: column;
 		gap: 1rem;
 		width: 240px;
-		padding-top: 3rem;
+		padding-top: 0;
+		height: 100%;
+		justify-content: center;
 	}
 
 	/* ── Panel handle + header (nascosti su desktop) ── */
@@ -496,6 +493,8 @@
 		border-radius: 8px;
 		padding: 1rem;
 		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
 	}
 
 	.moves-panel h3 {

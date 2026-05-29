@@ -58,26 +58,32 @@ func (h *UsersHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		Total  int `json:"total"`
 	}
 
-	// Conta wins (partite come bianco vinte + partite come nero vinte)
+	// Conta wins — esclude partite bot
 	h.pg.Pool.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM games
 		WHERE status = 'finished'
+		  AND white_id != '00000000-0000-0000-0000-000000000000'
+		  AND black_id != '00000000-0000-0000-0000-000000000000'
 		  AND ((white_id = $1 AND result = 'white')
 		    OR (black_id = $1 AND result = 'black'))
 	`, userID).Scan(&stats.Wins)
 
-	// Losses
+	// Losses — esclude partite bot
 	h.pg.Pool.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM games
 		WHERE status = 'finished'
+		  AND white_id != '00000000-0000-0000-0000-000000000000'
+		  AND black_id != '00000000-0000-0000-0000-000000000000'
 		  AND ((white_id = $1 AND result = 'black')
 		    OR (black_id = $1 AND result = 'white'))
 	`, userID).Scan(&stats.Losses)
 
-	// Draws
+	// Draws — esclude partite bot
 	h.pg.Pool.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM games
 		WHERE status = 'finished'
+		  AND white_id != '00000000-0000-0000-0000-000000000000'
+		  AND black_id != '00000000-0000-0000-0000-000000000000'
 		  AND (white_id = $1 OR black_id = $1)
 		  AND result = 'draw'
 	`, userID).Scan(&stats.Draws)
@@ -96,6 +102,9 @@ func (h *UsersHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN games g
 		       ON (g.white_id = u.id OR g.black_id = u.id)
 		      AND g.status = 'finished'
+		      AND g.white_id != '00000000-0000-0000-0000-000000000000'
+		      AND g.black_id != '00000000-0000-0000-0000-000000000000'
+		WHERE u.id != '00000000-0000-0000-0000-000000000000'
 		GROUP BY u.id, u.username, u.avatar_url, u.elo_rapid
 		ORDER BY u.elo_rapid DESC
 		LIMIT 50

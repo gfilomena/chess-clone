@@ -27,7 +27,6 @@
 			</div>
 			<div class="cta-row">
 				<a href="/play" class="btn btn-primary cta">{$t.home.play_game}</a>
-				<a href="/play/bot" class="btn-outline">{$t.home.vs_bot}</a>
 			</div>
 
 		{:else}

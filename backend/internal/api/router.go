@@ -57,6 +57,7 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	mux.HandleFunc("GET /api/games/{id}", gamesHandler.GetGame)
 	mux.HandleFunc("GET /api/games/{id}/pgn", gamesHandler.GetPGN)
 	mux.HandleFunc("GET /api/users/{id}/games", gamesHandler.GetUserGames)
+	mux.HandleFunc("POST /api/bot-games", gamesHandler.SaveBotGame)
 
 	// Utenti
 	usersHandler := NewUsersHandler(pg)
