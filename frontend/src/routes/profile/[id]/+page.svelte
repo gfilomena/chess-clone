@@ -347,35 +347,49 @@
 			gap: 1rem;
 		}
 
-		.profile-info h1 { font-size: 1.3rem; }
+		/* Header: avatar+info on one row, button goes below */
+		.profile-header {
+			flex-wrap: wrap;
+			gap: 0.75rem;
+		}
+		.profile-info {
+			flex: 1 1 0;
+			min-width: 0;
+		}
+		.profile-info h1 {
+			font-size: 1.3rem;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.profile-header .btn {
+			width: 100%;
+			flex-basis: 100%;
+			padding: 0.6rem 1rem;
+			font-size: 0.95rem;
+		}
 
-		.elo-cards {
-			gap: 0.5rem;
-		}
-		.elo-card {
-			padding: 0.75rem 0.5rem;
-		}
+		/* ELO cards */
+		.elo-cards { gap: 0.5rem; }
+		.elo-card { padding: 0.75rem 0.5rem; }
 		.elo-value { font-size: 1.4rem; }
 		.elo-value.dimmed { font-size: 1.1rem; }
 
+		/* Stats bar */
 		.stats-bar {
 			gap: 0;
 			justify-content: space-between;
 			padding: 0.75rem 1rem;
-			flex-wrap: wrap;
 		}
-		.stat-block {
-			min-width: 0;
-			flex: 1 1 auto;
-		}
+		.stat-block { min-width: 0; }
 		.stat-num { font-size: 1.2rem; }
 
+		/* Games table: horizontal scroll, no date wrapping */
 		.games-section {
 			overflow-x: auto;
 			-webkit-overflow-scrolling: touch;
 		}
-		.games-table {
-			min-width: 480px;
-		}
+		.games-table { min-width: 480px; }
+		.games-table td { white-space: nowrap; }
 	}
 </style>
