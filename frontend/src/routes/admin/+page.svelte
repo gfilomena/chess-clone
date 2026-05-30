@@ -32,6 +32,53 @@
 	let liveInterval: ReturnType<typeof setInterval> | null = null;
 	let actionMsg    = $state('');
 
+	// ── Modifica utente ────────────────────────────────────────────────────────
+	let editingUser  = $state<{ id: string; username: string; email: string } | null>(null);
+	let editError    = $state('');
+	let editLoading  = $state(false);
+
+	function openEdit(u: any) {
+		editingUser = { id: u.id, username: u.username, email: u.email };
+		editError = '';
+	}
+
+	async function saveEdit() {
+		if (!editingUser) return;
+		editLoading = true;
+		editError = '';
+		const r = await fetch(`${API}/api/admin/users/${editingUser.id}`, {
+			method: 'PUT',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username: editingUser.username, email: editingUser.email }),
+		});
+		const j = await r.json();
+		editLoading = false;
+		if (j.success) {
+			editingUser = null;
+			actionMsg = '✅ Utente modificato';
+			setTimeout(() => actionMsg = '', 2500);
+			fetchUsers(userSearch);
+		} else {
+			editError = j.error?.message ?? 'Errore salvataggio';
+		}
+	}
+
+	// ── Elimina utente ─────────────────────────────────────────────────────────
+	async function deleteUser(u: any) {
+		if (!confirm(`Eliminare definitivamente l'utente "${u.username}"?\n\nQuesta azione non può essere annullata.`)) return;
+		const r = await fetch(`${API}/api/admin/users/${u.id}`, {
+			method: 'DELETE',
+			credentials: 'include',
+		});
+		const j = await r.json();
+		if (j.success) {
+			actionMsg = `✅ Utente "${u.username}" eliminato`;
+			setTimeout(() => actionMsg = '', 2500);
+			fetchUsers(userSearch);
+		}
+	}
+
 	// ── Fetch helpers ──────────────────────────────────────────────────────────
 	async function apiFetch(path: string, opts: RequestInit = {}) {
 		const r = await fetch(`${API}${path}`, { credentials: 'include', ...opts });
@@ -294,7 +341,7 @@
 							<td class="muted">{u.created_at.slice(0,10)}</td>
 							<td class="muted">{u.last_seen ? u.last_seen.slice(0,16).replace('T',' ') : '—'}</td>
 							<td class="actions-cell">
-								<button class="btn-sm" title="Reset ELO a 800"
+								<button class="btn-sm" title="Reset ELO"
 									onclick={() => patchUser(u.id, 'reset_elo')}>↺ ELO</button>
 								{#if u.is_banned}
 									<button class="btn-sm green" title="Sbanna"
@@ -303,6 +350,10 @@
 									<button class="btn-sm red" title="Banna"
 										onclick={() => patchUser(u.id, 'ban')}>🚫 Banna</button>
 								{/if}
+								<button class="btn-sm blue" title="Modifica"
+									onclick={() => openEdit(u)}>✏️</button>
+								<button class="btn-sm red" title="Elimina"
+									onclick={() => deleteUser(u)}>🗑</button>
 							</td>
 						</tr>
 					{/each}
@@ -420,6 +471,51 @@
 	{/if}
 
 </div>
+
+<!-- ── Modale modifica utente ────────────────────────────────────────────── -->
+{#if editingUser}
+	<div class="modal-backdrop" onclick={() => editingUser = null} aria-hidden="true"></div>
+	<div class="modal" role="dialog" aria-modal="true" aria-label="Modifica utente">
+		<h2 class="modal-title">✏️ Modifica utente</h2>
+
+		{#if editError}
+			<div class="modal-error">{editError}</div>
+		{/if}
+
+		<div class="modal-field">
+			<label for="edit-username">Username</label>
+			<input
+				id="edit-username"
+				type="text"
+				bind:value={editingUser.username}
+				placeholder="Username"
+				minlength="3"
+				maxlength="30"
+			/>
+		</div>
+
+		<div class="modal-field">
+			<label for="edit-email">Email</label>
+			<input
+				id="edit-email"
+				type="email"
+				bind:value={editingUser.email}
+				placeholder="email@esempio.com"
+			/>
+		</div>
+
+		<div class="modal-actions">
+			<button class="btn-sm" onclick={() => editingUser = null}>Annulla</button>
+			<button
+				class="btn-sm green"
+				onclick={saveEdit}
+				disabled={editLoading || !editingUser.username || !editingUser.email}
+			>
+				{editLoading ? '…' : '💾 Salva'}
+			</button>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.admin-wrap {
@@ -673,6 +769,72 @@
 	.btn-sm.red:hover     { background: rgba(201,95,95,0.1); }
 	.btn-sm.green         { border-color: var(--accent); color: var(--accent); }
 	.btn-sm.green:hover   { background: rgba(129,182,76,0.1); }
+	.btn-sm.blue          { border-color: #5b9bd5; color: #5b9bd5; }
+	.btn-sm.blue:hover    { background: rgba(91,155,213,0.1); }
+
+	/* ── Modale modifica ── */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0,0,0,0.6);
+		z-index: 400;
+		backdrop-filter: blur(2px);
+	}
+	.modal {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 401;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 1.75rem;
+		width: min(420px, 92vw);
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+	}
+	.modal-title {
+		font-size: 1.1rem;
+		font-weight: 700;
+		margin: 0;
+	}
+	.modal-error {
+		background: rgba(201,95,95,0.12);
+		border: 1px solid var(--danger);
+		border-radius: 6px;
+		color: var(--danger);
+		font-size: 0.85rem;
+		padding: 0.5rem 0.75rem;
+	}
+	.modal-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.modal-field label {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+	.modal-field input {
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--text);
+		padding: 0.55rem 0.8rem;
+		font-size: 0.92rem;
+		outline: none;
+		transition: border-color 0.2s;
+	}
+	.modal-field input:focus { border-color: var(--accent); }
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+	}
 	.link-btn {
 		font-size: 0.8rem;
 		color: var(--accent);

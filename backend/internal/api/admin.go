@@ -184,6 +184,59 @@ func (h *AdminHandler) Users(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, users)
 }
 
+// ── PUT /api/admin/users/:id ──────────────────────────────────────────────────
+//
+// Body: { "username": "...", "email": "..." }
+
+func (h *AdminHandler) EditUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || id == "00000000-0000-0000-0000-000000000000" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "ID non valido")
+		return
+	}
+
+	var body struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Body non valido")
+		return
+	}
+	if body.Username == "" || body.Email == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "Username ed email sono obbligatori")
+		return
+	}
+
+	_, err := h.pg.Pool.Exec(r.Context(),
+		`UPDATE users SET username = $1, email = $2 WHERE id = $3`,
+		body.Username, body.Email, id,
+	)
+	if err != nil {
+		writeError(w, http.StatusConflict, "CONFLICT", "Username o email già in uso")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ── DELETE /api/admin/users/:id ───────────────────────────────────────────────
+
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || id == "00000000-0000-0000-0000-000000000000" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "ID non valido")
+		return
+	}
+
+	if _, err := h.pg.Pool.Exec(r.Context(),
+		`DELETE FROM users WHERE id = $1`, id,
+	); err != nil {
+		writeError(w, http.StatusInternalServerError, "SERVER_ERROR", "Errore eliminazione")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // ── PATCH /api/admin/users/:id ────────────────────────────────────────────────
 //
 // Body: { "action": "ban" | "unban" | "reset_elo" }

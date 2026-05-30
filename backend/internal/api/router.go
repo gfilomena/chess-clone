@@ -96,6 +96,8 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	ra := adminHandler.RequireAdmin
 	mux.HandleFunc("GET /api/admin/stats",         ra(adminHandler.Stats))
 	mux.HandleFunc("GET /api/admin/users",         ra(adminHandler.Users))
+	mux.HandleFunc("PUT /api/admin/users/{id}",    ra(adminHandler.EditUser))
+	mux.HandleFunc("DELETE /api/admin/users/{id}", ra(adminHandler.DeleteUser))
 	mux.HandleFunc("PATCH /api/admin/users/{id}",  ra(adminHandler.PatchUser))
 	mux.HandleFunc("GET /api/admin/games",         ra(adminHandler.Games))
 	mux.HandleFunc("GET /api/admin/hub",           ra(adminHandler.Hub))
@@ -112,7 +114,7 @@ func NewRouter(pg *db.Postgres, mm *matchmaking.Matchmaker, staticFS fs.FS) http
 	}
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{frontendURL},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
 	})
